@@ -3,7 +3,6 @@ const { JWT } = require('google-auth-library');
 const axios = require('axios');
 
 async function sync() {
-  // 1. Setup Auth
   const serviceAccountAuth = new JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
@@ -15,10 +14,10 @@ async function sync() {
   
   const athleteSheet = doc.sheetsByTitle['Athletes'];
   const statsSheet = doc.sheetsByTitle['Stats'];
-  const leaderboardSheet = doc.sheetsByTitle['Leaderboard']; // The sheet the website reads
+  const leaderboardSheet = doc.sheetsByTitle['Leaderboard']; 
   const athleteRows = await athleteSheet.getRows();
 
-  // --- PHASE 1: SYNC ACTIVITIES ---
+  // --- PHASE 1: SYNC ACTIVITIES TO STATS SHEET ---
   for (const row of athleteRows) {
     const name = row.get('name');
     const athleteId = row.get('athlete_id');
@@ -38,7 +37,6 @@ async function sync() {
       });
 
       for (const act of activities.data) {
-          // Push raw data. Points (Col G) are calculated by your Sheet formula.
           await statsSheet.addRow({
               athlete_id: athleteId,
               name: name,
@@ -49,23 +47,22 @@ async function sync() {
               date: act.start_date_local 
           });
       }
-      console.log(`Synced data for: ${name}`);
+      console.log(`Synced: ${name}`);
     } catch (err) {
-      console.error(`Error processing ${name}:`, err.message);
+      console.error(`Error: ${name}`, err.message);
     }
   }
 
-  // --- PHASE 2: UPDATE STATUS TIMESTAMPS (E1 & F1) ---
-  // We write these to the Leaderboard sheet so the CSV reader sees them in the header
+  // --- PHASE 2: UPDATE TIMESTAMPS IN ROW 2 (NOT THE HEADER) ---
+  // E2 = Last Sync Value | F2 = Next Sync Value
   try {
-    await leaderboardSheet.loadCells('E1:F1'); 
+    await leaderboardSheet.loadCells('E2:F2'); 
     
-    const lastSyncCell = leaderboardSheet.getCellByA1('E1');
-    const nextSyncCell = leaderboardSheet.getCellByA1('F1');
+    const lastSyncCell = leaderboardSheet.getCellByA1('E2');
+    const nextSyncCell = leaderboardSheet.getCellByA1('F2');
 
     const now = new Date();
-    // Assuming a 2-hour update interval for the "Next Sync" label
-    const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); 
+    const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2h interval
 
     const options = { 
         timeZone: 'Asia/Jakarta', 
@@ -79,9 +76,9 @@ async function sync() {
     nextSyncCell.value = next.toLocaleString('en-GB', options);
 
     await leaderboardSheet.saveUpdatedCells();
-    console.log(`Timestamps updated: Last(${lastSyncCell.value}), Next(${nextSyncCell.value})`);
+    console.log(`Row 2 Updated: Last Sync (${lastSyncCell.value})`);
   } catch (err) {
-    console.error("Failed to update status timestamps:", err.message);
+    console.error("Timestamp update failed:", err.message);
   }
 }
 
