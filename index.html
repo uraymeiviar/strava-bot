@@ -6,74 +6,150 @@
     <title>ITB Strava Challenge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .bg-itb-night { background: linear-gradient(135deg, #061b46 0%, #0033a0 100%); }
-        .glass-card { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px); }
+        .bg-itb-night { background: linear-gradient(135deg, #061b46 0%, #0033a0 50%, #001f5b 100%); }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
     </style>
 </head>
-<body class="bg-itb-night min-h-screen text-gray-800 p-4">
+<body class="bg-itb-night font-sans leading-normal tracking-normal min-h-screen text-gray-800">
 
-    <div class="max-w-4xl mx-auto py-10">
-        <header class="text-center mb-12">
-            <h1 class="text-4xl font-black text-white mb-2">ITB Challenge Leaderboard</h1>
-            <p class="text-blue-200">Point-based activity tracking</p>
+    <div class="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
+        
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-white mb-3 tracking-tight drop-shadow-md">
+                ITB Challenge Leaderboard 🏃‍♂️🚴‍♀️
+            </h1>
+            <p class="text-blue-200 text-lg md:text-xl font-medium">
+                Track your progress, compete with peers.
+            </p>
         </header>
 
-        <div class="glass-card rounded-3xl shadow-2xl p-8">
-            <div class="flex justify-between items-end mb-8 border-b border-gray-100 pb-4">
-                <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
-                <span id="sync-time" class="text-xs text-gray-400">Syncing...</span>
+        <div id="success-alert" class="hidden mx-auto mb-8 bg-blue-100 border-l-4 border-blue-600 text-blue-800 p-4 rounded-r-lg shadow-md animate-pulse" role="alert">
+            <div class="flex items-center">
+                <svg class="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <div>
+                    <p class="font-bold text-lg">Registration Successful!</p>
+                    <p>You're in! Your activities will sync automatically based on the schedule.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
+            
+            <div id="join-container" class="lg:w-1/3 glass-card p-6 rounded-2xl shadow-xl h-fit order-2 lg:order-1">
+                <h2 class="text-2xl font-bold mb-3 text-blue-900">Join the Challenge</h2>
+                <p class="text-gray-600 mb-6 leading-relaxed text-sm">
+                    Connect your Strava account once to automatically track your runs and rides on the leaderboard.
+                </p>
+                
+                <a href="https://www.strava.com/oauth/authorize?client_id=202830&response_type=code&redirect_uri=https://strava-auth-handler-161054073403.asia-southeast2.run.app&scope=read,activity:read_all" 
+                   class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-lg font-bold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 transition duration-200 shadow-lg transform hover:-translate-y-0.5">
+                    Connect with Strava
+                </a>
+                <p class="text-xs text-center text-gray-400 mt-3">Secure connection via Strava API.</p>
             </div>
 
-            <div id="leaderboard" class="overflow-x-auto">
+            <div class="lg:w-2/3 glass-card p-6 rounded-2xl shadow-xl order-1 lg:order-2">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
+                    <div class="text-sm text-blue-600 font-medium mt-2 md:mt-0 flex items-center bg-blue-50 py-1 px-3 rounded-full">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span id="last-updated">Fetching data...</span>
+                    </div>
                 </div>
+                
+                <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100">
+                    <div class="flex flex-col items-center justify-center py-12 text-blue-500 animate-pulse">
+                        <p class="text-lg font-medium">Loading leaderboard...</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        async function loadLeaderboard() {
-            const container = document.getElementById('leaderboard');
-            const syncEl = document.getElementById('sync-time');
+        // 1. Success status and URL cleaning
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('status') === 'success') {
+            localStorage.setItem('strava_registered', 'true');
+            const successAlert = document.getElementById('success-alert');
+            successAlert.classList.remove('hidden');
+            setTimeout(() => successAlert.classList.add('hidden'), 10000);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        function updateJoinCard() {
+            const isRegistered = localStorage.getItem('strava_registered');
+            const joinContainer = document.getElementById('join-container');
+
+            if (isRegistered === 'true') {
+                joinContainer.innerHTML = `
+                    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center shadow-inner">
+                        <div class="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <h2 class="text-2xl font-bold text-blue-900 mb-2">You're Connected!</h2>
+                        <p class="text-gray-600 text-sm mb-6">Your activities are syncing automatically.</p>
+                        <button onclick="localStorage.removeItem('strava_registered'); location.reload();" 
+                                class="text-xs text-blue-400 hover:text-blue-600 underline transition duration-150">
+                            Register a different account?
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // 2. Data Fetching
+        async function fetchLeaderboard() {
+            const container = document.getElementById('leaderboard-container');
+            const lastUpdatedEl = document.getElementById('last-updated');
 
             try {
-                const res = await fetch('./scoreboard.json?v=' + Date.now());
-                const json = await res.json();
-                syncEl.textContent = `Last sync: ${json.last_synced}`;
+                const response = await fetch('./scoreboard.json?t=' + new Date().getTime());
+                const jsonResponse = await response.json();
+                const data = jsonResponse.data;
+                
+                lastUpdatedEl.textContent = `Last updated: ${jsonResponse.last_synced}`;
 
                 let html = `
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="text-gray-400 text-xs uppercase tracking-widest border-b border-gray-50">
-                                <th class="pb-4 font-semibold">Rank</th>
-                                <th class="pb-4 font-semibold">Athlete</th>
-                                <th class="pb-4 text-right font-semibold">Points</th>
-                                <th class="pb-4 text-right font-semibold">Last Recorded</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-50">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full leading-normal">
+                            <thead>
+                                <tr class="bg-blue-50 text-blue-800 uppercase text-xs font-semibold tracking-wider">
+                                    <th class="py-4 px-4 text-left">Rank</th>
+                                    <th class="py-4 px-4 text-left">Athlete</th>
+                                    <th class="py-4 px-4 text-right">Points</th>
+                                    <th class="py-4 px-4 text-right">Recent Activity</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700">
                 `;
 
-                json.data.forEach((user, i) => {
-                    const isTop = i < 3;
-                    const rankLabel = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
-                    
+                data.forEach((athlete, index) => {
+                    const rank = index + 1;
+                    const rowClass = rank === 1 ? "bg-yellow-50 border-b border-yellow-100 font-medium" : "border-b border-blue-50 hover:bg-blue-50 transition";
+                    const icon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+
                     html += `
-                        <tr class="${isTop ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition">
-                            <td class="py-5 px-2 font-bold text-blue-600">${rankLabel}</td>
-                            <td class="py-5 font-bold text-gray-900">${user.name}</td>
-                            <td class="py-5 text-right font-black text-blue-700 text-xl">${user.points}</td>
-                            <td class="py-5 text-right text-gray-400 text-xs">${user.last_activity_time || 'No activity'}</td>
+                        <tr class="${rowClass}">
+                            <td class="py-4 px-4 text-left">${icon}</td>
+                            <td class="py-4 px-4 text-left font-bold text-blue-900">${athlete.name}</td>
+                            <td class="py-4 px-4 text-right font-black text-blue-700 text-xl">${athlete.points}</td>
+                            <td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity_time || 'No data'}</td>
                         </tr>
                     `;
                 });
 
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
                 container.innerHTML = html;
-
-            } catch (e) {
-                container.innerHTML = '<p class="text-center py-10 text-gray-400 italic">Leaderboard is currently being updated...</p>';
+            } catch (err) {
+                container.innerHTML = '<div class="text-center py-8 text-blue-400">Waiting for data...</div>';
             }
         }
-        loadLeaderboard();
+
+        updateJoinCard();
+        fetchLeaderboard();
     </script>
 </body>
 </html>

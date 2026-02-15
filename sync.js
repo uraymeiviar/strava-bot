@@ -53,14 +53,13 @@ async function sync() {
           summary[athleteId].points += Math.floor((act.distance / 1000) * weight);
 
           // Find the most recent activity timestamp
-          const activityTs = new Date(act.start_date_local).getTime();
-          if (activityTs > summary[athleteId]._internal_ts) {
-              summary[athleteId]._internal_ts = activityTs;
-              
-              // Format the timestamp for the frontend
+          const currentTs = new Date(act.start_date_local).getTime();
+          if (currentTs > summary[athleteId]._ts) {
+              summary[athleteId]._ts = currentTs;
               const dateObj = new Date(act.start_date_local);
+              // Format: 16 Feb, 08:45
               summary[athleteId].last_activity_time = dateObj.toLocaleString('en-GB', { 
-                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
               });
           }
 
