@@ -4,66 +4,71 @@ const axios = require('axios');
 const fs = require('fs');
 
 async function sync() {
-  // 1. Setup Auth
-  const serviceAccountAuth = new JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
+  console.log('Starting Sync Process...');
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
 
-  const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
-  await doc.loadInfo();
-  
-  const athleteSheet = doc.sheetsByTitle['Athletes'];
-  const rows = await athleteSheet.getRows();
-  
-  let leaderboard = [];
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    
+    const athleteSheet = doc.sheetsByTitle['Athletes'];
+    const rows = await athleteSheet.getRows();
+    console.log(`Found ${rows.length} athletes to sync.`);
+    
+    let leaderboard = [];
 
-  // 2. Process each athlete
-  for (const row of rows) {
-    try {
-      // Refresh the token to get a fresh access_token
-      const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
-        refresh_token: row.get('refresh_token'),
-        grant_type: 'refresh_token'
-      });
+    for (const row of rows) {
+      const name = row.get('name');
+      const refreshToken = row.get('refresh_token');
+      
+      console.log(`Syncing data for: ${name}...`);
 
-      const accessToken = tokenRes.data.access_token;
+      try {
+        const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
+          client_id: process.env.STRAVA_CLIENT_ID,
+          client_secret: process.env.STRAVA_CLIENT_SECRET,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token'
+        });
 
-      // Fetch activities (since Feb 1st, 2026)
-      const after = Math.floor(new Date('2026-02-01').getTime() / 1000);
-      const activityRes = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
+        const accessToken = tokenRes.data.access_token;
+        const after = Math.floor(new Date('2026-02-01').getTime() / 1000);
+        
+        const activityRes = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
 
-      // Calculate totals
-      const totalDistance = activityRes.data.reduce((sum, act) => sum + act.distance, 0);
-      const points = Math.floor(totalDistance / 1000); // 1 point per km
+        const totalDistance = activityRes.data.reduce((sum, act) => sum + act.distance, 0);
+        const points = Math.floor(totalDistance / 1000);
 
-      leaderboard.push({
-        name: row.get('name'),
-        distance: (totalDistance / 1000).toFixed(2),
-        points: points
-      });
-
-    } catch (err) {
-      console.error(`Error syncing ${row.get('name')}:`, err.message);
+        leaderboard.push({
+          name: name,
+          distance: (totalDistance / 1000).toFixed(2),
+          points: points
+        });
+      } catch (innerErr) {
+        console.error(`Failed to fetch Strava data for ${name}:`, innerErr.message);
+      }
     }
+
+    // Sort and Save with the NEW structure for index.html
+    leaderboard.sort((a, b) => b.points - a.points);
+    const finalOutput = {
+      last_synced: new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false }),
+      data: leaderboard
+    };
+
+    fs.writeFileSync('scoreboard.json', JSON.stringify(finalOutput, null, 2));
+    console.log('Successfully generated scoreboard.json');
+
+  } catch (err) {
+    console.error('CRITICAL ERROR:', err.message);
+    process.exit(1); // Tells GitHub that the script failed
   }
-
-  // 3. Save the results with a timestamp
-  leaderboard.sort((a, b) => b.points - a.points);
-  
-  const finalOutput = {
-    // Creates a "Last Updated" timestamp in GMT+7
-    last_synced: new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false }),
-    data: leaderboard
-  };
-
-  fs.writeFileSync('scoreboard.json', JSON.stringify(finalOutput, null, 2));
-  console.log('Leaderboard updated with timestamp!');
 }
 
 sync();
