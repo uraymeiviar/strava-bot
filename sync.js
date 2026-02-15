@@ -16,9 +16,8 @@ async function sync() {
   const athleteSheet = doc.sheetsByTitle['Athletes'];
   const statsSheet = doc.sheetsByTitle['Stats'];
   const athleteRows = await athleteSheet.getRows();
-  
-  let summary = {}; 
 
+  // --- PHASE 1: WRITE RAW DATA (Columns A-F + Date) ---
   for (const row of athleteRows) {
     const name = row.get('name');
     const athleteId = row.get('athlete_id');
@@ -32,55 +31,79 @@ async function sync() {
       });
 
       const accessToken = tokenRes.data.access_token;
-      // Filter activities after Feb 1st, 2026
-      const after = Math.floor(new Date('2026-02-01').getTime() / 1000);
+      const after = Math.floor(new Date('2026-02-01').getTime() / 1000); // Challenge Start
       const activities = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
-      if (!summary[athleteId]) {
-        summary[athleteId] = { 
-            name, 
-            points: 0, 
-            last_activity_time: null,
-            _internal_ts: 0 
-        };
-      }
-
       for (const act of activities.data) {
-          // Point Logic: Run (1.0), Ride (0.3), Others (0.5)
-          let weight = act.type === 'Run' ? 1.0 : (act.type === 'Ride' ? 0.3 : 0.5);
-          summary[athleteId].points += Math.floor((act.distance / 1000) * weight);
-
-          // Find the most recent activity timestamp
-          const currentTs = new Date(act.start_date_local).getTime();
-          if (currentTs > summary[athleteId]._ts) {
-              summary[athleteId]._ts = currentTs;
-              const dateObj = new Date(act.start_date_local);
-              // Format: 16 Feb, 08:45
-              summary[athleteId].last_activity_time = dateObj.toLocaleString('en-GB', { 
-                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-              });
-          }
-
-          // Log to Google Sheet
+          // We assume your spreadsheet has headers: 
+          // athlete_id, name, type, distance_meters, moving_time, elevation_gain, points, date
+          
+          // Check for duplicates (simple check based on raw data match could be added here)
+          // For now, we append.
+          
           await statsSheet.addRow({
               athlete_id: athleteId,
               name: name,
               type: act.type,
-              distance_meters: act.distance,
-              date: act.start_date_local
+              distance_meters: act.distance,         
+              moving_time: act.moving_time,           
+              elevation_gain: act.total_elevation_gain,
+              // We SKIP 'points' (Column G) so the Sheet Formula can calculate it
+              date: act.start_date_local // Column H (Needed for "Last Activity" display)
           });
       }
     } catch (err) {
-      console.error(`Error for ${name}:`, err.message);
+      console.error(`Error processing ${name}:`, err.message);
     }
   }
 
-  const leaderboard = Object.values(summary).sort((a, b) => b.points - a.points);
+  // --- PHASE 2: READ & AGGREGATE (Sum up the calculated points) ---
+  // Re-load the stats sheet to get the calculated values from Column G
+  const statsRows = await statsSheet.getRows(); 
+  
+  let leaderboardMap = {};
+
+  for (const row of statsRows) {
+      const id = row.get('athlete_id');
+      const name = row.get('name');
+      // Read the point value calculated by your Sheet Formula (Column G)
+      const points = parseFloat(row.get('points')) || 0; 
+      const activityDate = row.get('date');
+
+      if (!leaderboardMap[id]) {
+          leaderboardMap[id] = { name: name, totalPoints: 0, lastActivityTs: 0, lastActivityStr: '---' };
+      }
+
+      // Sum the points
+      leaderboardMap[id].totalPoints += points;
+
+      // Track latest activity
+      if (activityDate) {
+          const ts = new Date(activityDate).getTime();
+          if (ts > leaderboardMap[id].lastActivityTs) {
+              leaderboardMap[id].lastActivityTs = ts;
+              // Format: "16 Feb, 09:30"
+              leaderboardMap[id].lastActivityStr = new Date(activityDate).toLocaleString('en-GB', { 
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
+              });
+          }
+      }
+  }
+
+  // Convert map to array and sort
+  const data = Object.values(leaderboardMap)
+      .map(p => ({
+          name: p.name,
+          points: Math.floor(p.totalPoints), // Round down to whole number
+          last_activity: p.lastActivityStr
+      }))
+      .sort((a, b) => b.points - a.points);
+
   const finalOutput = {
     last_synced: new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta' }),
-    data: leaderboard
+    data: data
   };
 
   fs.writeFileSync('scoreboard.json', JSON.stringify(finalOutput, null, 2));
