@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Athlete History - ITB Strava Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bg-itb-night { background: linear-gradient(135deg, #061b46 0%, #0033a0 50%, #001f5b 100%); }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+    </style>
+</head>
+<body class="bg-itb-night font-sans leading-normal tracking-normal min-h-screen text-gray-800">
+
+    <div class="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-white mb-3 tracking-tight drop-shadow-md">
+                Athlete History 📅
+            </h1>
+            <p id="athlete-name-header" class="text-blue-200 text-lg md:text-xl font-medium">Loading...</p>
+        </header>
+
+        <div class="glass-card p-6 rounded-2xl shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <a href="index.html" class="flex items-center text-blue-600 font-bold hover:text-blue-800 transition">
+                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Leaderboard
+                </a>
+            </div>
+
+            <div id="history-container" class="overflow-x-auto rounded-xl border border-blue-100">
+                <p class="p-8 text-center text-gray-400">Loading history...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper to format numbers
+        const formatDistance = (meters) => (parseFloat(meters) / 1000).toFixed(2) + ' km';
+        const formatTime = (seconds) => {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            return (h > 0 ? h + 'h ' : '') + m + 'm';
+        };
+        const formatDate = (isoStr) => {
+            if (!isoStr) return '-';
+            const date = new Date(isoStr);
+            return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
+                   date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        };
+
+        async function fetchHistory() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const athleteName = urlParams.get('athlete');
+
+            if (!athleteName) {
+                document.getElementById('athlete-name-header').textContent = 'Athlete not specified';
+                document.getElementById('history-container').innerHTML = '<p class="p-8 text-center text-red-500">No athlete specified in URL.</p>';
+                return;
+            }
+
+            document.getElementById('athlete-name-header').textContent = `Activity Log for ${athleteName}`;
+            
+            // CSV URL provided by user
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=1403681529&single=true&output=csv';
+            const container = document.getElementById('history-container');
+
+            try {
+                const response = await fetch(sheetUrl + '&t=' + Date.now());
+                const csvText = await response.text();
+                const rows = csvText.split('\n');
+
+                if (rows.length < 2) {
+                    container.innerHTML = '<p class="p-8 text-center text-gray-400">No data found.</p>';
+                    return;
+                }
+
+                // Parse Headers to find column indices
+                // Assuming standard headers from README: athlete_id, name, type, distance_meters, moving_time, elevation_gain, points, date
+                // But let's be dynamic if possible, or fallback to known indices
+                const headers = rows[0].split(',').map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+                
+                const idx = {
+                    name: headers.indexOf('name'),
+                    type: headers.indexOf('type'),
+                    distance: headers.indexOf('distance_meters'),
+                    time: headers.indexOf('moving_time'),
+                    elevation: headers.indexOf('elevation_gain'),
+                    date: headers.indexOf('date')
+                };
+
+                // Fallback if headers are missing or different (based on README order)
+                if (idx.name === -1) idx.name = 1;
+                if (idx.type === -1) idx.type = 2;
+                if (idx.distance === -1) idx.distance = 3;
+                if (idx.time === -1) idx.time = 4;
+                if (idx.elevation === -1) idx.elevation = 5;
+                if (idx.date === -1) idx.date = 7; // README says date is last
+
+                const dataRows = rows.slice(1);
+                const activities = dataRows.map(row => {
+                    // Regex to handle CSV with quotes
+                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+                    return {
+                        name: cols[idx.name],
+                        type: cols[idx.type],
+                        distance: cols[idx.distance],
+                        time: cols[idx.time],
+                        elevation: cols[idx.elevation],
+                        date: cols[idx.date]
+                    };
+                }).filter(r => r.name === athleteName);
+
+                // Sort by date descending
+                activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                if (activities.length === 0) {
+                    container.innerHTML = '<p class="p-8 text-center text-gray-400">No activities recorded yet.</p>';
+                    return;
+                }
+
+                let html = '<table class="min-w-full"><thead class="bg-blue-50 text-blue-800 text-xs font-bold uppercase tracking-wider"><tr>' +
+                    '<th class="py-3 px-4 text-left">Date</th>' +
+                    '<th class="py-3 px-4 text-left">Type</th>' +
+                    '<th class="py-3 px-4 text-right">Distance</th>' +
+                    '<th class="py-3 px-4 text-right">Time</th>' +
+                    '<th class="py-3 px-4 text-right">Elev</th>' +
+                    '</tr></thead><tbody class="text-sm divide-y divide-blue-50">';
+
+                activities.forEach(act => {
+                    html += `<tr class="hover:bg-blue-50 transition">
+                        <td class="py-3 px-4 text-gray-600 whitespace-nowrap">${formatDate(act.date)}</td>
+                        <td class="py-3 px-4 font-bold text-blue-900">${act.type || '-'}</td>
+                        <td class="py-3 px-4 text-right text-gray-700">${formatDistance(act.distance)}</td>
+                        <td class="py-3 px-4 text-right text-gray-500">${formatTime(act.time)}</td>
+                        <td class="py-3 px-4 text-right text-gray-500">${act.elevation}m</td>
+                    </tr>`;
+                });
+
+                container.innerHTML = html + '</tbody></table>';
+
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = '<p class="p-8 text-center text-red-400">Error loading history. Check console.</p>';
+            }
+        }
+
+        fetchHistory();
+    </script>
+</body>
+</html>
