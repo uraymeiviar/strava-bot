@@ -17,10 +17,7 @@ async function sync() {
   const statsSheet = doc.sheetsByTitle['Stats'];
   const athleteRows = await athleteSheet.getRows();
   
-  // Clear Stats sheet (optional: keep history and just append new)
-  // await statsSheet.clearRows(); 
-
-  let summary = {}; // To group totals for the website
+  let summary = {}; 
 
   for (const row of athleteRows) {
     const name = row.get('name');
@@ -35,43 +32,55 @@ async function sync() {
       });
 
       const accessToken = tokenRes.data.access_token;
+      // Filter activities after Feb 1st, 2026
       const after = Math.floor(new Date('2026-02-01').getTime() / 1000);
       const activities = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
-      if (!summary[athleteId]) summary[athleteId] = { name, distance: 0, points: 0, activities: [] };
+      if (!summary[athleteId]) {
+        summary[athleteId] = { 
+            name, 
+            points: 0, 
+            last_activity_time: null,
+            _internal_ts: 0 
+        };
+      }
 
       for (const act of activities.data) {
-          // 1. Push Raw Data to Stats Tab
+          // Point Logic: Run (1.0), Ride (0.3), Others (0.5)
+          let weight = act.type === 'Run' ? 1.0 : (act.type === 'Ride' ? 0.3 : 0.5);
+          summary[athleteId].points += Math.floor((act.distance / 1000) * weight);
+
+          // Find the most recent activity timestamp
+          const activityTs = new Date(act.start_date_local).getTime();
+          if (activityTs > summary[athleteId]._internal_ts) {
+              summary[athleteId]._internal_ts = activityTs;
+              
+              // Format the timestamp for the frontend
+              const dateObj = new Date(act.start_date_local);
+              summary[athleteId].last_activity_time = dateObj.toLocaleString('en-GB', { 
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+              });
+          }
+
+          // Log to Google Sheet
           await statsSheet.addRow({
               athlete_id: athleteId,
               name: name,
               type: act.type,
-              distance_meters: act.distance,         // Raw meters
-              moving_time: act.moving_time,           // Raw seconds
-              elevation_gain: act.total_elevation_gain, // Raw meters
-              // We leave 'points' blank so the Spreadsheet Formula can handle it
+              distance_meters: act.distance,
+              date: act.start_date_local
           });
-
-          // 2. We still need to calculate a temporary sum for the scoreboard.json
-          // Use the same logic as your spreadsheet formula here
-          let weight = act.type === 'Run' ? 1.0 : (act.type === 'Ride' ? 0.3 : 0.5);
-          let pts = (act.distance / 1000) * weight;
-
-          summary[athleteId].distance += (act.distance / 1000);
-          summary[athleteId].points += Math.floor(pts);
-          summary[athleteId].activities.push(act.type);
       }
     } catch (err) {
       console.error(`Error for ${name}:`, err.message);
     }
   }
 
-  // 3. Save for Website
   const leaderboard = Object.values(summary).sort((a, b) => b.points - a.points);
   const finalOutput = {
-    last_synced: new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta', hour12: false }),
+    last_synced: new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta' }),
     data: leaderboard
   };
 

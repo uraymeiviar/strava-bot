@@ -6,195 +6,74 @@
     <title>ITB Strava Challenge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom gradient inspired by ITB night lights */
-        .bg-itb-night {
-            background: linear-gradient(135deg, #061b46 0%, #0033a0 50%, #001f5b 100%);
-        }
-        /* Glassmorphism effect for cards */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
+        .bg-itb-night { background: linear-gradient(135deg, #061b46 0%, #0033a0 100%); }
+        .glass-card { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px); }
     </style>
 </head>
-<body class="bg-itb-night font-sans leading-normal tracking-normal min-h-screen text-gray-800">
+<body class="bg-itb-night min-h-screen text-gray-800 p-4">
 
-    <div class="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
-        
-        <header class="text-center mb-10">
-            <h1 class="text-3xl md:text-5xl font-extrabold text-white mb-3 tracking-tight drop-shadow-md">
-                ITB Challenge Leaderboard 🏃‍♂️🚴‍♀️
-            </h1>
-            <p class="text-blue-200 text-lg md:text-xl font-medium">
-                Track your progress, compete with peers.
-            </p>
+    <div class="max-w-4xl mx-auto py-10">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-black text-white mb-2">ITB Challenge Leaderboard</h1>
+            <p class="text-blue-200">Point-based activity tracking</p>
         </header>
 
-        <div id="success-alert" class="hidden mx-auto mb-8 bg-blue-100 border-l-4 border-blue-600 text-blue-800 p-4 rounded-r-lg shadow-md animate-pulse" role="alert">
-            <div class="flex items-center">
-                <svg class="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-                <div>
-                    <p class="font-bold text-lg">Registration Successful!</p>
-                    <p>You're in! Your activities will sync automatically based on the schedule.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
-            
-            <div class="lg:w-1/3 glass-card p-6 rounded-2xl shadow-xl h-fit order-2 lg:order-1">
-                <h2 class="text-2xl font-bold mb-3 text-blue-900">Join the Challenge</h2>
-                <p class="text-gray-600 mb-6 leading-relaxed">
-                    New here? Connect your Strava account once to automatically track your runs and rides on the leaderboard.
-                </p>
-                
-                <a href="https://www.strava.com/oauth/authorize?client_id=202830&response_type=code&redirect_uri=https://strava-auth-handler-161054073403.asia-southeast2.run.app&scope=read,activity:read_all" 
-                   class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-lg font-bold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-                   <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                     <svg class="h-5 w-5 text-blue-300 group-hover:text-blue-100 transition ease-in-out duration-150" fill="currentColor" viewBox="0 0 24 24">
-                       <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116zm-5.15-17.944L6.194 7.611h3.065L10.237 5.5l1.194-2.333 1.189 2.333 1.194 2.111h3.066L10.237 0z"/>
-                     </svg>
-                   </span>
-                    Connect with Strava
-                </a>
-                <p class="text-xs text-center text-gray-400 mt-3">Secure connection via Strava API.</p>
+        <div class="glass-card rounded-3xl shadow-2xl p-8">
+            <div class="flex justify-between items-end mb-8 border-b border-gray-100 pb-4">
+                <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
+                <span id="sync-time" class="text-xs text-gray-400">Syncing...</span>
             </div>
 
-            <div class="lg:w-2/3 glass-card p-6 rounded-2xl shadow-xl order-1 lg:order-2">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-                    <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
-                    <div class="text-sm text-blue-600 font-medium mt-2 md:mt-0 flex items-center bg-blue-50 py-1 px-3 rounded-full">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span id="last-updated">Fetching data...</span>
-                    </div>
+            <div id="leaderboard" class="overflow-x-auto">
                 </div>
-                
-                <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100">
-                    <div class="flex flex-col items-center justify-center py-12 text-blue-500 animate-pulse">
-                        <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        <p class="text-lg font-medium">Loading leaderboard...</p>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
     <script>
-        // 1. Check for success status in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('status') === 'success') {
-            localStorage.setItem('strava_registered', 'true'); // Remember them!
-            const successAlert = document.getElementById('success-alert');
-            successAlert.classList.remove('hidden');
-            // Auto-hide after 10 seconds
-            setTimeout(() => {
-                successAlert.classList.add('hidden');
-            }, 10000);
-            // Clean URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        // 2. Fetch and render the new scoreboard.json structure
-        async function fetchLeaderboard() {
-            const container = document.getElementById('leaderboard-container');
-            const lastUpdatedEl = document.getElementById('last-updated');
+        async function loadLeaderboard() {
+            const container = document.getElementById('leaderboard');
+            const syncEl = document.getElementById('sync-time');
 
             try {
-                const response = await fetch('./scoreboard.json?t=' + new Date().getTime()); // Prevent caching
-                if (!response.ok) throw new Error('No data found yet.');
-                
-                // New structure: { last_synced: "...", data: [...] }
-                const jsonResponse = await response.json();
-                const data = jsonResponse.data;
-                const lastSynced = jsonResponse.last_synced;
-
-                // Update timestamp
-                lastUpdatedEl.textContent = `Last updated: ${lastSynced} (WIB)`;
-
-                if (!data || data.length === 0) {
-                    container.innerHTML = '<div class="text-center py-8 text-gray-500">No activities recorded yet for this period.</div>';
-                    return;
-                }
+                const res = await fetch('./scoreboard.json?v=' + Date.now());
+                const json = await res.json();
+                syncEl.textContent = `Last sync: ${json.last_synced}`;
 
                 let html = `
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full leading-normal">
-                            <thead>
-                                <tr class="bg-blue-50 text-blue-800 uppercase text-sm leading-normal font-semibold">
-                                    <th class="py-3 px-4 text-left rounded-tl-xl">Rank</th>
-                                    <th class="py-3 px-4 text-left">Athlete</th>
-                                    <th class="py-3 px-4 text-right">Distance</th>
-                                    <th class="py-3 px-4 text-right rounded-tr-xl">Points</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-gray-700">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-gray-400 text-xs uppercase tracking-widest border-b border-gray-50">
+                                <th class="pb-4 font-semibold">Rank</th>
+                                <th class="pb-4 font-semibold">Athlete</th>
+                                <th class="pb-4 text-right font-semibold">Points</th>
+                                <th class="pb-4 text-right font-semibold">Last Recorded</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50">
                 `;
 
-                data.forEach((athlete, index) => {
-                    const rank = index + 1;
-                    // Highlight top 3 with different row colors and icons
-                    let rankStyle = "font-medium text-gray-600";
-                    let rowClass = "border-b border-blue-50 hover:bg-blue-50 transition duration-150";
-                    let rankIcon = "";
-
-                    if (rank === 1) {
-                        rankStyle = "font-bold text-yellow-600 text-lg";
-                        rowClass = "bg-yellow-50 border-b border-yellow-100 hover:bg-yellow-100 transition duration-150 font-medium";
-                        rankIcon = "🥇";
-                    } else if (rank === 2) {
-                        rankStyle = "font-bold text-gray-500 text-lg";
-                        rankIcon = "🥈";
-                    } else if (rank === 3) {
-                        rankStyle = "font-bold text-orange-700 text-lg";
-                        rankIcon = "🥉";
-                    }
-
+                json.data.forEach((user, i) => {
+                    const isTop = i < 3;
+                    const rankLabel = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+                    
                     html += `
-                        <tr class="${rowClass}">
-                            <td class="py-4 px-4 text-left ${rankStyle}">${rankIcon} #${rank}</td>
-                            <td class="py-4 px-4 text-left font-semibold text-blue-900">${athlete.name}</td>
-                            <td class="py-4 px-4 text-right font-medium">${athlete.distance} km</td>
-                            <td class="py-4 px-4 text-right font-bold text-blue-700 text-lg">${athlete.points}</td>
+                        <tr class="${isTop ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition">
+                            <td class="py-5 px-2 font-bold text-blue-600">${rankLabel}</td>
+                            <td class="py-5 font-bold text-gray-900">${user.name}</td>
+                            <td class="py-5 text-right font-black text-blue-700 text-xl">${user.points}</td>
+                            <td class="py-5 text-right text-gray-400 text-xs">${user.last_activity_time || 'No activity'}</td>
                         </tr>
                     `;
                 });
 
-                html += '</tbody></table></div>';
+                html += '</tbody></table>';
                 container.innerHTML = html;
 
-            } catch (err) {
-                console.error(err);
-                container.innerHTML = '<div class="text-center py-8 text-blue-400 font-medium"><p>Waiting for the first scheduled sync...</p><p class="text-sm mt-2">Check back in a few hours!</p></div>';
-                lastUpdatedEl.textContent = "Pending first sync...";
+            } catch (e) {
+                container.innerHTML = '<p class="text-center py-10 text-gray-400 italic">Leaderboard is currently being updated...</p>';
             }
         }
-
-        function updateJoinCard() {
-            const isRegistered = localStorage.getItem('strava_registered');
-            const joinContainer = document.getElementById('join-container');
-
-            if (isRegistered === 'true') {
-                joinContainer.innerHTML = `
-                    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center shadow-inner">
-                        <div class="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        </div>
-                        <h2 class="text-2xl font-bold text-blue-900 mb-2">You're Connected!</h2>
-                        <p class="text-gray-600 text-sm mb-6">Your activities are being tracked. New data appears every 2 hours during the day.</p>
-                        <button onclick="localStorage.removeItem('strava_registered'); location.reload();" 
-                                class="text-xs text-blue-400 hover:text-blue-600 underline transition duration-150">
-                            Registering a different account?
-                        </button>
-                    </div>
-                `;
-            }
-        }
-
-        updateJoinCard();
-        fetchLeaderboard();
+        loadLeaderboard();
     </script>
 </body>
 </html>
