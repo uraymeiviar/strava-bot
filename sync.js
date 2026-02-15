@@ -36,7 +36,7 @@ async function sync() {
         });
 
         const accessToken = tokenRes.data.access_token;
-        const after = Math.floor(new Date('2026-02-01').getTime() / 1000);
+        const after = Math.floor(new Date('2026-01-01').getTime() / 1000);
         
         const activityRes = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
           headers: { Authorization: `Bearer ${accessToken}` }

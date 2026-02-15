@@ -86,6 +86,7 @@
         // 1. Check for success status in URL
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('status') === 'success') {
+            localStorage.setItem('strava_registered', 'true'); // Remember them!
             const successAlert = document.getElementById('success-alert');
             successAlert.classList.remove('hidden');
             // Auto-hide after 10 seconds
@@ -171,6 +172,28 @@
             }
         }
 
+        function updateJoinCard() {
+            const isRegistered = localStorage.getItem('strava_registered');
+            const joinCard = document.querySelector('.lg\\:w-1\\/3'); // Targets your "Join" column
+
+            if (isRegistered === 'true') {
+                joinCard.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-3 text-blue-900">You're in! 🏁</h2>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        Your account is connected. Your activities will be updated on the leaderboard automatically.
+                    </p>
+                    <div class="py-3 px-4 text-center bg-green-100 text-green-700 font-bold rounded-xl border border-green-200">
+                        Registration Active
+                    </div>
+                    <button onclick="localStorage.removeItem('strava_registered'); location.reload();" 
+                            class="text-xs text-blue-400 mt-4 underline block mx-auto">
+                        Not you? Re-connect
+                    </button>
+                `;
+            }
+        }
+
+        updateJoinCard();
         fetchLeaderboard();
     </script>
 </body>
