@@ -43,7 +43,7 @@
             <div class="lg:w-2/3 glass-card p-6 rounded-2xl shadow-xl order-1 lg:order-2">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
-                    <span id="last-updated" class="text-xs text-blue-600 font-medium italic bg-blue-50 px-3 py-1 rounded-full">Syncing...</span>
+                    <span id="last-updated" class="text-xs text-blue-600 font-medium italic bg-blue-50 px-3 py-1 rounded-full">Fetching...</span>
                 </div>
                 <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100"></div>
             </div>
@@ -73,22 +73,44 @@
         }
 
         async function fetchLeaderboard() {
+            // REPLACE THIS LINK WITH YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=235397772&single=true&output=csv';
+            
+            const container = document.getElementById('leaderboard-container');
+            
             try {
-                const res = await fetch('./scoreboard.json?t=' + Date.now());
-                const json = await res.json();
-                document.getElementById('last-updated').textContent = `Last sync: ${json.last_synced}`;
+                const response = await fetch(sheetUrl);
+                const csvText = await response.text();
+                
+                // Parse CSV (Skip header row, split by newline)
+                const rows = csvText.split('\n').slice(1);
+                
+                const data = rows.map(row => {
+                    // Regex to handle potential quotes in CSV (e.g., "Doe, John")
+                    const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    const clean = (col) => col ? col.replace(/^"|"$/g, '') : '';
+                    
+                    return {
+                        name: clean(cols[0]),       // Column A in CSV (Name)
+                        points: clean(cols[1]),     // Column B in CSV (Points)
+                        last_activity: clean(cols[2]) // Column C in CSV (Last Activity)
+                    };
+                }).filter(r => r.name); // Remove empty rows
+
+                document.getElementById('last-updated').textContent = "Live from Google Sheets";
 
                 let html = '<table class="min-w-full"><thead class="bg-blue-50 text-blue-800 text-xs font-bold uppercase tracking-wider"><tr><th class="py-4 px-4 text-left">Rank</th><th class="py-4 px-4 text-left">Athlete</th><th class="py-4 px-4 text-right">Points</th><th class="py-4 px-4 text-right">Last Recorded</th></tr></thead><tbody class="text-sm">';
                 
-                json.data.forEach((athlete, i) => {
+                data.forEach((athlete, i) => {
                     const rank = i + 1;
                     const icon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-                    html += `<tr class="border-b border-blue-50 hover:bg-blue-50 transition"><td class="py-4 px-4 font-bold text-blue-600">${icon}</td><td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td><td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points}</td><td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity}</td></tr>`;
+                    html += `<tr class="border-b border-blue-50 hover:bg-blue-50 transition"><td class="py-4 px-4 font-bold text-blue-600">${icon}</td><td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td><td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points}</td><td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity || '---'}</td></tr>`;
                 });
                 
-                document.getElementById('leaderboard-container').innerHTML = html + '</tbody></table>';
+                container.innerHTML = html + '</tbody></table>';
             } catch (err) {
-                document.getElementById('leaderboard-container').innerHTML = '<p class="p-8 text-center text-gray-400">Loading...</p>';
+                console.error(err);
+                container.innerHTML = '<p class="p-8 text-center text-gray-400">Loading data...</p>';
             }
         }
 

@@ -1,7 +1,7 @@
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const axios = require('axios');
-const fs = require('fs');
+// fs is no longer needed because we don't save a local file anymore
 
 async function sync() {
   const serviceAccountAuth = new JWT({
@@ -17,7 +17,9 @@ async function sync() {
   const statsSheet = doc.sheetsByTitle['Stats'];
   const athleteRows = await athleteSheet.getRows();
 
-  // --- PHASE 1: WRITE RAW DATA (Columns A-F + Date) ---
+  // --- WRITE RAW DATA ONLY ---
+  // The Google Sheet "Leaderboard" tab (using QUERY formula) will handle all math/sorting automatically.
+  
   for (const row of athleteRows) {
     const name = row.get('name');
     const athleteId = row.get('athlete_id');
@@ -37,11 +39,9 @@ async function sync() {
       });
 
       for (const act of activities.data) {
-          // We assume your spreadsheet has headers: 
-          // athlete_id, name, type, distance_meters, moving_time, elevation_gain, points, date
-          
-          // Check for duplicates (simple check based on raw data match could be added here)
-          // For now, we append.
+          // We append raw data. 
+          // Column G (Points) will auto-populate via your Sheet Formula.
+          // Column H (Date) is saved for the "Last Activity" display.
           
           await statsSheet.addRow({
               athlete_id: athleteId,
@@ -50,63 +50,16 @@ async function sync() {
               distance_meters: act.distance,         
               moving_time: act.moving_time,           
               elevation_gain: act.total_elevation_gain,
-              // We SKIP 'points' (Column G) so the Sheet Formula can calculate it
-              date: act.start_date_local // Column H (Needed for "Last Activity" display)
+              date: act.start_date_local 
           });
       }
+      console.log(`Synced data for: ${name}`);
     } catch (err) {
       console.error(`Error processing ${name}:`, err.message);
     }
   }
-
-  // --- PHASE 2: READ & AGGREGATE (Sum up the calculated points) ---
-  // Re-load the stats sheet to get the calculated values from Column G
-  const statsRows = await statsSheet.getRows(); 
   
-  let leaderboardMap = {};
-
-  for (const row of statsRows) {
-      const id = row.get('athlete_id');
-      const name = row.get('name');
-      // Read the point value calculated by your Sheet Formula (Column G)
-      const points = parseFloat(row.get('points')) || 0; 
-      const activityDate = row.get('date');
-
-      if (!leaderboardMap[id]) {
-          leaderboardMap[id] = { name: name, totalPoints: 0, lastActivityTs: 0, lastActivityStr: '---' };
-      }
-
-      // Sum the points
-      leaderboardMap[id].totalPoints += points;
-
-      // Track latest activity
-      if (activityDate) {
-          const ts = new Date(activityDate).getTime();
-          if (ts > leaderboardMap[id].lastActivityTs) {
-              leaderboardMap[id].lastActivityTs = ts;
-              // Format: "16 Feb, 09:30"
-              leaderboardMap[id].lastActivityStr = new Date(activityDate).toLocaleString('en-GB', { 
-                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-              });
-          }
-      }
-  }
-
-  // Convert map to array and sort
-  const data = Object.values(leaderboardMap)
-      .map(p => ({
-          name: p.name,
-          points: Math.floor(p.totalPoints), // Round down to whole number
-          last_activity: p.lastActivityStr
-      }))
-      .sort((a, b) => b.points - a.points);
-
-  const finalOutput = {
-    last_synced: new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta' }),
-    data: data
-  };
-
-  fs.writeFileSync('scoreboard.json', JSON.stringify(finalOutput, null, 2));
+  console.log("Sync complete. Leaderboard is updated on Google Sheets.");
 }
 
 sync();
