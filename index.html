@@ -49,7 +49,7 @@
                     </div>
                 </div>
                 <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100">
-                    <p class="p-8 text-center text-gray-400">Loading live standings...</p>
+                    <p class="p-8 text-center text-gray-400">Loading standings...</p>
                 </div>
             </div>
         </div>
@@ -77,8 +77,23 @@
             }
         }
 
+        // Helper to turn any ISO string into Human Readable WIB
+        const toWIB = (isoStr) => {
+            if (!isoStr || isoStr === '--:--' || isoStr.trim() === '') return '---';
+            const date = new Date(isoStr);
+            if (isNaN(date.getTime())) return isoStr; // Return as-is if parsing fails
+            
+            return date.toLocaleString('en-GB', {
+                timeZone: 'Asia/Jakarta',
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }) + ' WIB';
+        };
+
         async function fetchLeaderboard() {
-            // Updated Published CSV Link
             const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=235397772&single=true&output=csv';
             const container = document.getElementById('leaderboard-container');
             
@@ -87,12 +102,14 @@
                 const csvText = await response.text();
                 const rows = csvText.split('\n');
 
-                // 1. Get Sync Info from Row 2 (index 1)
+                // 1. Get Sync Metadata from Row 2 (index 1)
                 if (rows.length > 1) {
                     const statusCols = rows[1].split(',');
-                    const clean = (c) => c ? c.replace(/^"|"$/g, '').trim() : '--:--';
-                    document.getElementById('last-updated').textContent = `Last update: ${clean(statusCols[4])} WIB`;
-                    document.getElementById('next-update').textContent = `Next update scheduled: ${clean(statusCols[5])} WIB`;
+                    const rawLast = statusCols[4]?.replace(/^"|"$/g, '');
+                    const rawNext = statusCols[5]?.replace(/^"|"$/g, '');
+                    
+                    document.getElementById('last-updated').textContent = `Last update: ${toWIB(rawLast)}`;
+                    document.getElementById('next-update').textContent = `Next update scheduled: ${toWIB(rawNext)}`;
                 }
 
                 // 2. Parse Athlete Data
@@ -100,7 +117,11 @@
                 const data = dataRows.map(row => {
                     const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
                     const clean = (c) => c ? c.replace(/^"|"$/g, '').trim() : '';
-                    return { name: clean(cols[0]), points: clean(cols[1]), last_activity: clean(cols[2]) };
+                    return { 
+                        name: clean(cols[0]), 
+                        points: clean(cols[1]), 
+                        last_activity: clean(cols[2]) 
+                    };
                 }).filter(r => r.name && r.name !== 'Name');
 
                 let html = '<table class="min-w-full"><thead class="bg-blue-50 text-blue-800 text-xs font-bold uppercase tracking-wider"><tr><th class="py-4 px-4 text-left">Rank</th><th class="py-4 px-4 text-left">Athlete</th><th class="py-4 px-4 text-right">Points</th><th class="py-4 px-4 text-right">Last Recorded</th></tr></thead><tbody class="text-sm">';
@@ -112,7 +133,9 @@
                         <td class="py-4 px-4 font-bold text-blue-600">${icon}</td>
                         <td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td>
                         <td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points || 0}</td>
-                        <td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity || '---'}</td>
+                        <td class="py-4 px-4 text-right text-xs text-gray-500 font-medium">
+                            ${toWIB(athlete.last_activity)}
+                        </td>
                     </tr>`;
                 });
                 

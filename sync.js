@@ -48,22 +48,22 @@ async function sync() {
               distance_meters: act.distance,         
               moving_time: act.moving_time,           
               elevation_gain: act.total_elevation_gain,
-              date: act.start_date_local 
+              date: act.start_date_local // ISO format from Strava
           });
       }
-      console.log(`Synced: ${name}`);
+      console.log(`Synced data for: ${name}`);
     } catch (err) { console.error(`Error for ${name}:`, err.message); }
   }
 
-  // --- UPDATE TIMESTAMPS IN E2/F2 ---
+  // --- UPDATE TIMESTAMPS IN E2/F2 (Technical Standard) ---
   try {
     await leaderboardSheet.loadCells('E2:F2'); 
     const now = new Date();
-    const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2h interval
-    const options = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' };
+    const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2-hour interval
 
-    leaderboardSheet.getCellByA1('E2').value = now.toLocaleString('en-GB', options);
-    leaderboardSheet.getCellByA1('F2').value = next.toLocaleString('en-GB', options);
+    // Use ISO strings in the sheet so the browser can parse them reliably
+    leaderboardSheet.getCellByA1('E2').value = now.toISOString();
+    leaderboardSheet.getCellByA1('F2').value = next.toISOString();
 
     await leaderboardSheet.saveUpdatedCells();
   } catch (err) { console.error("Metadata update failed:", err.message); }
