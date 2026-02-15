@@ -1,7 +1,6 @@
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const axios = require('axios');
-// fs is no longer needed because we don't save a local file anymore
 
 async function sync() {
   const serviceAccountAuth = new JWT({
@@ -18,8 +17,6 @@ async function sync() {
   const athleteRows = await athleteSheet.getRows();
 
   // --- WRITE RAW DATA ONLY ---
-  // The Google Sheet "Leaderboard" tab (using QUERY formula) will handle all math/sorting automatically.
-  
   for (const row of athleteRows) {
     const name = row.get('name');
     const athleteId = row.get('athlete_id');
@@ -33,16 +30,12 @@ async function sync() {
       });
 
       const accessToken = tokenRes.data.access_token;
-      const after = Math.floor(new Date('2026-02-01').getTime() / 1000); // Challenge Start
+      const after = Math.floor(new Date('2026-02-01').getTime() / 1000); 
       const activities = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
       for (const act of activities.data) {
-          // We append raw data. 
-          // Column G (Points) will auto-populate via your Sheet Formula.
-          // Column H (Date) is saved for the "Last Activity" display.
-          
           await statsSheet.addRow({
               athlete_id: athleteId,
               name: name,
@@ -53,13 +46,11 @@ async function sync() {
               date: act.start_date_local 
           });
       }
-      console.log(`Synced data for: ${name}`);
+      console.log(`Synced: ${name}`);
     } catch (err) {
-      console.error(`Error processing ${name}:`, err.message);
+      console.error(`Error: ${name}`, err.message);
     }
   }
-  
-  console.log("Sync complete. Leaderboard is updated on Google Sheets.");
 }
 
 sync();

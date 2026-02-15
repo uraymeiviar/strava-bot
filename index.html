@@ -72,45 +72,42 @@
             }
         }
 
-        async function fetchLeaderboard() {
-            // REPLACE THIS LINK WITH YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK
-            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=235397772&single=true&output=csv';
-            
-            const container = document.getElementById('leaderboard-container');
-            
-            try {
+            async function fetchLeaderboard() {
+                // REPLACE THIS LINK WITH YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK
+                const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=235397772&single=true&output=csv';
+                
+                const container = document.getElementById('leaderboard-container');
+                
+                try {
                 const response = await fetch(sheetUrl);
                 const csvText = await response.text();
+                const rows = csvText.split('\n');
                 
-                // Parse CSV (Skip header row, split by newline)
-                const rows = csvText.split('\n').slice(1);
-                
-                const data = rows.map(row => {
-                    // Regex to handle potential quotes in CSV (e.g., "Doe, John")
-                    const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-                    const clean = (col) => col ? col.replace(/^"|"$/g, '') : '';
-                    
-                    return {
-                        name: clean(cols[0]),       // Column A in CSV (Name)
-                        points: clean(cols[1]),     // Column B in CSV (Points)
-                        last_activity: clean(cols[2]) // Column C in CSV (Last Activity)
-                    };
-                }).filter(r => r.name); // Remove empty rows
+                // 1. Get Sync Info from the first row (assuming it's in the CSV columns)
+                // Or use a separate tiny CSV just for the status cells.
+                const headerCols = rows[0].split(',');
+                document.getElementById('last-updated').textContent = `Last update: ${new Date().toLocaleTimeString('en-GB')} WIB`;
+                document.getElementById('next-update').textContent = `Next update: Approx. 2 hours from now`;
 
-                document.getElementById('last-updated').textContent = "Live from Google Sheets";
+                // 2. Parse Athlete Data
+                const dataRows = rows.slice(1);
+                const data = dataRows.map(row => {
+                    const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    const clean = (c) => c ? c.replace(/^"|"$/g, '') : '';
+                    return { name: clean(cols[0]), points: clean(cols[1]), last_activity: clean(cols[2]) };
+                }).filter(r => r.name);
 
                 let html = '<table class="min-w-full"><thead class="bg-blue-50 text-blue-800 text-xs font-bold uppercase tracking-wider"><tr><th class="py-4 px-4 text-left">Rank</th><th class="py-4 px-4 text-left">Athlete</th><th class="py-4 px-4 text-right">Points</th><th class="py-4 px-4 text-right">Last Recorded</th></tr></thead><tbody class="text-sm">';
                 
                 data.forEach((athlete, i) => {
                     const rank = i + 1;
                     const icon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-                    html += `<tr class="border-b border-blue-50 hover:bg-blue-50 transition"><td class="py-4 px-4 font-bold text-blue-600">${icon}</td><td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td><td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points}</td><td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity || '---'}</td></tr>`;
+                    html += `<tr class="border-b border-blue-50 hover:bg-blue-50 transition"><td class="py-4 px-4 font-bold text-blue-600">${icon}</td><td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td><td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points}</td><td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity}</td></tr>`;
                 });
                 
                 container.innerHTML = html + '</tbody></table>';
             } catch (err) {
-                console.error(err);
-                container.innerHTML = '<p class="p-8 text-center text-gray-400">Loading data...</p>';
+                container.innerHTML = '<p class="p-8 text-center text-gray-400">Loading live standings...</p>';
             }
         }
 
