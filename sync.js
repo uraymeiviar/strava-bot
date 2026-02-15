@@ -1,97 +1,69 @@
-/**
- * sync.js - The Daily Sync Engine
- * Logic: Read Sheet -> Refresh Tokens -> Fetch Data -> Calculate Points -> Update Sheet/JSON
- */
-
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const axios = require('axios');
 const fs = require('fs');
 
-// 1. Setup Auth for Google Sheets
-const serviceAccountAuth = new JWT({
-  email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+async function sync() {
+  // 1. Setup Auth
+  const serviceAccountAuth = new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
 
-const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
-
-async function runSync() {
+  const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
   await doc.loadInfo();
-  const athleteSheet = doc.sheetsByTitle['Athletes'];
-  const statsSheet = doc.sheetsByTitle['Stats'];
   
-  const athleteRows = await athleteSheet.getRows();
-  const leaderboardData = [];
+  const athleteSheet = doc.sheetsByTitle['Athletes'];
+  const rows = await athleteSheet.getRows();
+  
+  let leaderboard = [];
 
-  for (const row of athleteRows) {
+  // 2. Process each athlete
+  for (const row of rows) {
     try {
-      // 2. Refresh Strava Token
-      const tokenResponse = await axios.post('https://www.strava.com/oauth/token', {
+      // Refresh the token to get a fresh access_token
+      const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
         client_id: process.env.STRAVA_CLIENT_ID,
         client_secret: process.env.STRAVA_CLIENT_SECRET,
         refresh_token: row.get('refresh_token'),
         grant_type: 'refresh_token'
       });
 
-      const { access_token, refresh_token: new_refresh_token } = tokenResponse.data;
+      const accessToken = tokenRes.data.access_token;
 
-      // 3. Update refresh_token in sheet if it changed
-      if (new_refresh_token !== row.get('refresh_token')) {
-        row.set('refresh_token', new_refresh_token);
-        await row.save();
-      }
-
-      // 4. Fetch Activities for current month
-      // startOfMonth is a Unix timestamp
-      const startOfMonth = Math.floor(new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime() / 1000);
-      const activities = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${startOfMonth}`, {
-        headers: { Authorization: `Bearer ${access_token}` }
+      // Fetch activities (since Feb 1st, 2026)
+      const after = Math.floor(new Date('2026-02-01').getTime() / 1000);
+      const activityRes = await axios.get(`https://www.strava.com/api/v3/athlete/activities?after=${after}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
 
-      // 5. Calculate Points (Your Custom Logic)
-      let points = 0;
-      let distance = 0;
-      
-      activities.data.forEach(act => {
-        if (act.type === 'Run') {
-          distance += act.distance;
-          points += (act.distance / 1000) * 10; // 10 pts per KM
-        }
-      });
+      // Calculate totals
+      const totalDistance = activityRes.data.reduce((sum, act) => sum + act.distance, 0);
+      const points = Math.floor(totalDistance / 1000); // 1 point per km
 
-      leaderboardData.push({
+      leaderboard.push({
         name: row.get('name'),
-        distance: (distance / 1000).toFixed(2),
-        points: Math.floor(points)
+        distance: (totalDistance / 1000).toFixed(2),
+        points: points
       });
-
-      // 6. Sync back to Google Sheet Stats tab
-      const statsRows = await statsSheet.getRows();
-      const statRow = statsRows.find(r => r.get('athlete_id') === row.get('athlete_id'));
-      
-      if (statRow) {
-        statRow.set('total_points', Math.floor(points));
-        statRow.set('total_distance', (distance / 1000).toFixed(2));
-        await statRow.save();
-      } else {
-        await statsSheet.addRow({
-          athlete_id: row.get('athlete_id'),
-          name: row.get('name'),
-          total_points: Math.floor(points),
-          total_distance: (distance / 1000).toFixed(2)
-        });
-      }
 
     } catch (err) {
-      console.error(`Failed to sync athlete ${row.get('name')}:`, err.message);
+      console.error(`Error syncing ${row.get('name')}:`, err.message);
     }
   }
 
-  // 7. Save to scoreboard.json for the static frontend
-  fs.writeFileSync('./scoreboard.json', JSON.stringify(leaderboardData.sort((a,b) => b.points - a.points), null, 2));
-  console.log('Sync Complete. Scoreboard updated.');
+  // 3. Save the results with a timestamp
+  leaderboard.sort((a, b) => b.points - a.points);
+  
+  const finalOutput = {
+    // Creates a "Last Updated" timestamp in GMT+7
+    last_synced: new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false }),
+    data: leaderboard
+  };
+
+  fs.writeFileSync('scoreboard.json', JSON.stringify(finalOutput, null, 2));
+  console.log('Leaderboard updated with timestamp!');
 }
 
-runSync();
+sync();

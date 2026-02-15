@@ -3,94 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strava Club Challenge</title>
+    <title>ITB Strava Challenge</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom gradient inspired by ITB night lights */
+        .bg-itb-night {
+            background: linear-gradient(135deg, #001f5b 0%, #0033a0 50%, #001f5b 100%);
+        }
+        /* Glassmorphism effect for cards */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+<body class="bg-itb-night font-sans leading-normal tracking-normal min-h-screen text-gray-800">
 
-    <div class="container mx-auto p-8">
-        <header class="text-center mb-12">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">February Challenge 🏃‍♂️</h1>
-            <p class="text-gray-600">Sync your runs and climb the leaderboard!</p>
+    <div class="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
+        
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-white mb-3 tracking-tight drop-shadow-md">
+                ITB Challenge Leaderboard 🏃‍♂️🚴‍♀️
+            </h1>
+            <p class="text-blue-200 text-lg md:text-xl font-medium">
+                Track your progress, compete with peers.
+            </p>
         </header>
 
-        <div id="success-alert" class="hidden max-w-lg mx-auto mb-8 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 shadow-md" role="alert">
-            <p class="font-bold">Registration Successful!</p>
-            <p>You are now connected. Your activities will be synced nightly.</p>
+        <div id="success-alert" class="hidden mx-auto mb-8 bg-blue-100 border-l-4 border-blue-600 text-blue-800 p-4 rounded-r-lg shadow-md animate-pulse" role="alert">
+            <div class="flex items-center">
+                <svg class="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <div>
+                    <p class="font-bold text-lg">Registration Successful!</p>
+                    <p>You're in! Your activities will sync automatically based on the schedule.</p>
+                </div>
+            </div>
         </div>
 
-        <div class="flex flex-col md:flex-row gap-8">
-            <div class="md:w-1/3 bg-white p-6 rounded-lg shadow-md h-fit">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Join the Club</h2>
-                <p class="text-gray-500 mb-6 text-sm">One-time authorization required to track your points automatically.</p>
+        <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
+            
+            <div class="lg:w-1/3 glass-card p-6 rounded-2xl shadow-xl h-fit order-2 lg:order-1">
+                <h2 class="text-2xl font-bold mb-3 text-blue-900">Join the Challenge</h2>
+                <p class="text-gray-600 mb-6 leading-relaxed">
+                    New here? Connect your Strava account once to automatically track your runs and rides on the leaderboard.
+                </p>
                 
                 <a href="https://www.strava.com/oauth/authorize?client_id=202830&response_type=code&redirect_uri=https://strava-auth-handler-161054073403.asia-southeast2.run.app&scope=read,activity:read_all" 
-                   class="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded transition duration-200">
+                   class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-lg font-bold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                   <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                     <svg class="h-5 w-5 text-blue-300 group-hover:text-blue-100 transition ease-in-out duration-150" fill="currentColor" viewBox="0 0 24 24">
+                       <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116zm-5.15-17.944L6.194 7.611h3.065L10.237 5.5l1.194-2.333 1.189 2.333 1.194 2.111h3.066L10.237 0z"/>
+                     </svg>
+                   </span>
                     Connect with Strava
                 </a>
+                <p class="text-xs text-center text-gray-400 mt-3">Secure connection via Strava API.</p>
             </div>
 
-            <div class="md:w-2/3 bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-6 text-gray-700">Leaderboard</h2>
-                <div id="leaderboard-container">
-                    <p class="text-gray-400 italic">Fetching the latest stats...</p>
+            <div class="lg:w-2/3 glass-card p-6 rounded-2xl shadow-xl order-1 lg:order-2">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
+                    <div class="text-sm text-blue-600 font-medium mt-2 md:mt-0 flex items-center bg-blue-50 py-1 px-3 rounded-full">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span id="last-updated">Fetching data...</span>
+                    </div>
+                </div>
+                
+                <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100">
+                    <div class="flex flex-col items-center justify-center py-12 text-blue-500 animate-pulse">
+                        <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        <p class="text-lg font-medium">Loading leaderboard...</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // 1. Check for success status in URL after redirect
+        // 1. Check for success status in URL
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('status') === 'success') {
-            document.getElementById('success-alert').classList.remove('hidden');
+            const successAlert = document.getElementById('success-alert');
+            successAlert.classList.remove('hidden');
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                successAlert.classList.add('hidden');
+            }, 10000);
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
 
-        // 2. Fetch and render the scoreboard.json
+        // 2. Fetch and render the new scoreboard.json structure
         async function fetchLeaderboard() {
             const container = document.getElementById('leaderboard-container');
-            try {
-                // This fetches the JSON file generated by your GitHub Action
-                const response = await fetch('./scoreboard.json');
-                if (!response.ok) throw new Error('No data found');
-                
-                const data = await response.json();
+            const lastUpdatedEl = document.getElementById('last-updated');
 
-                if (data.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500">No activities recorded yet for this month.</p>';
+            try {
+                const response = await fetch('./scoreboard.json?t=' + new Date().getTime()); // Prevent caching
+                if (!response.ok) throw new Error('No data found yet.');
+                
+                // New structure: { last_synced: "...", data: [...] }
+                const jsonResponse = await response.json();
+                const data = jsonResponse.data;
+                const lastSynced = jsonResponse.last_synced;
+
+                // Update timestamp
+                lastUpdatedEl.textContent = `Last updated: ${lastSynced} (WIB)`;
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="text-center py-8 text-gray-500">No activities recorded yet for this period.</div>';
                     return;
                 }
 
                 let html = `
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b text-gray-600 uppercase text-xs">
-                                <th class="py-3 px-2">Rank</th>
-                                <th class="py-3 px-2">Athlete</th>
-                                <th class="py-3 px-2">Distance</th>
-                                <th class="py-3 px-2 font-bold">Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full leading-normal">
+                            <thead>
+                                <tr class="bg-blue-50 text-blue-800 uppercase text-sm leading-normal font-semibold">
+                                    <th class="py-3 px-4 text-left rounded-tl-xl">Rank</th>
+                                    <th class="py-3 px-4 text-left">Athlete</th>
+                                    <th class="py-3 px-4 text-right">Distance</th>
+                                    <th class="py-3 px-4 text-right rounded-tr-xl">Points</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700">
                 `;
 
                 data.forEach((athlete, index) => {
+                    const rank = index + 1;
+                    // Highlight top 3 with different row colors and icons
+                    let rankStyle = "font-medium text-gray-600";
+                    let rowClass = "border-b border-blue-50 hover:bg-blue-50 transition duration-150";
+                    let rankIcon = "";
+
+                    if (rank === 1) {
+                        rankStyle = "font-bold text-yellow-600 text-lg";
+                        rowClass = "bg-yellow-50 border-b border-yellow-100 hover:bg-yellow-100 transition duration-150 font-medium";
+                        rankIcon = "🥇";
+                    } else if (rank === 2) {
+                        rankStyle = "font-bold text-gray-500 text-lg";
+                        rankIcon = "🥈";
+                    } else if (rank === 3) {
+                        rankStyle = "font-bold text-orange-700 text-lg";
+                        rankIcon = "🥉";
+                    }
+
                     html += `
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="py-4 px-2 text-gray-500">#${index + 1}</td>
-                            <td class="py-4 px-2 font-medium">${athlete.name}</td>
-                            <td class="py-4 px-2 text-gray-500">${athlete.distance} km</td>
-                            <td class="py-4 px-2 font-bold text-orange-600">${athlete.points}</td>
+                        <tr class="${rowClass}">
+                            <td class="py-4 px-4 text-left ${rankStyle}">${rankIcon} #${rank}</td>
+                            <td class="py-4 px-4 text-left font-semibold text-blue-900">${athlete.name}</td>
+                            <td class="py-4 px-4 text-right font-medium">${athlete.distance} km</td>
+                            <td class="py-4 px-4 text-right font-bold text-blue-700 text-lg">${athlete.points}</td>
                         </tr>
                     `;
                 });
 
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
                 container.innerHTML = html;
 
             } catch (err) {
-                console.log(err);
-                container.innerHTML = '<p class="text-gray-400 italic text-sm">The first sync will run tonight at 2 AM. Check back soon!</p>';
+                console.error(err);
+                container.innerHTML = '<div class="text-center py-8 text-blue-400 font-medium"><p>Waiting for the first scheduled sync...</p><p class="text-sm mt-2">Check back in a few hours!</p></div>';
+                lastUpdatedEl.textContent = "Pending first sync...";
             }
         }
 
