@@ -15,9 +15,13 @@ async function sync() {
   const athleteSheet = doc.sheetsByTitle['Athletes'];
   const statsSheet = doc.sheetsByTitle['Stats'];
   const leaderboardSheet = doc.sheetsByTitle['Leaderboard']; 
+
+  // --- PREVENT DUPLICATES ---
+  // Wipe Stats so we re-push a fresh, unique list every time
+  await statsSheet.clearRows(); 
+
   const athleteRows = await athleteSheet.getRows();
 
-  // --- PHASE 1: SYNC ACTIVITIES TO STATS SHEET ---
   for (const row of athleteRows) {
     const name = row.get('name');
     const athleteId = row.get('athlete_id');
@@ -48,38 +52,21 @@ async function sync() {
           });
       }
       console.log(`Synced: ${name}`);
-    } catch (err) {
-      console.error(`Error: ${name}`, err.message);
-    }
+    } catch (err) { console.error(`Error for ${name}:`, err.message); }
   }
 
-  // --- PHASE 2: UPDATE TIMESTAMPS IN ROW 2 (NOT THE HEADER) ---
-  // E2 = Last Sync Value | F2 = Next Sync Value
+  // --- UPDATE TIMESTAMPS IN E2/F2 ---
   try {
     await leaderboardSheet.loadCells('E2:F2'); 
-    
-    const lastSyncCell = leaderboardSheet.getCellByA1('E2');
-    const nextSyncCell = leaderboardSheet.getCellByA1('F2');
-
     const now = new Date();
     const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2h interval
+    const options = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' };
 
-    const options = { 
-        timeZone: 'Asia/Jakarta', 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        day: '2-digit', 
-        month: 'short' 
-    };
-
-    lastSyncCell.value = now.toLocaleString('en-GB', options);
-    nextSyncCell.value = next.toLocaleString('en-GB', options);
+    leaderboardSheet.getCellByA1('E2').value = now.toLocaleString('en-GB', options);
+    leaderboardSheet.getCellByA1('F2').value = next.toLocaleString('en-GB', options);
 
     await leaderboardSheet.saveUpdatedCells();
-    console.log(`Row 2 Updated: Last Sync (${lastSyncCell.value})`);
-  } catch (err) {
-    console.error("Timestamp update failed:", err.message);
-  }
+  } catch (err) { console.error("Metadata update failed:", err.message); }
 }
 
 sync();

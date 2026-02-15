@@ -43,9 +43,14 @@
             <div class="lg:w-2/3 glass-card p-6 rounded-2xl shadow-xl order-1 lg:order-2">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-blue-900">Current Standings</h2>
-                    <span id="last-updated" class="text-xs text-blue-600 font-medium italic bg-blue-50 px-3 py-1 rounded-full">Fetching...</span>
+                    <div id="sync-info" class="text-right">
+                        <span id="last-updated" class="block text-xs text-blue-600 font-bold italic">Fetching latest sync...</span>
+                        <span id="next-update" class="block text-[10px] text-gray-400 font-medium italic"></span>
+                    </div>
                 </div>
-                <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100"></div>
+                <div id="leaderboard-container" class="overflow-hidden rounded-xl border border-blue-100">
+                    <p class="p-8 text-center text-gray-400">Loading live standings...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -72,42 +77,49 @@
             }
         }
 
-            async function fetchLeaderboard() {
-                // REPLACE THIS LINK WITH YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK
-                const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=235397772&single=true&output=csv';
-                
-                const container = document.getElementById('leaderboard-container');
-                
-                try {
-                const response = await fetch(sheetUrl);
+        async function fetchLeaderboard() {
+            // Updated Published CSV Link
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnDi9AViBWhhxtmA0FRb6zcu4P6cYCxyAGSjDNHWlIzoHBFiRFLm3ScTIGtC2tKr3FgFu9RK1HSWaP/pub?gid=235397772&single=true&output=csv';
+            const container = document.getElementById('leaderboard-container');
+            
+            try {
+                const response = await fetch(sheetUrl + '&t=' + Date.now());
                 const csvText = await response.text();
                 const rows = csvText.split('\n');
-                
-                // 1. Get Sync Info from the first row (assuming it's in the CSV columns)
-                // Or use a separate tiny CSV just for the status cells.
-                const headerCols = rows[0].split(',');
-                document.getElementById('last-updated').textContent = `Last update: ${new Date().toLocaleTimeString('en-GB')} WIB`;
-                document.getElementById('next-update').textContent = `Next update: Approx. 2 hours from now`;
+
+                // 1. Get Sync Info from Row 2 (index 1)
+                if (rows.length > 1) {
+                    const statusCols = rows[1].split(',');
+                    const clean = (c) => c ? c.replace(/^"|"$/g, '').trim() : '--:--';
+                    document.getElementById('last-updated').textContent = `Last update: ${clean(statusCols[4])} WIB`;
+                    document.getElementById('next-update').textContent = `Next update scheduled: ${clean(statusCols[5])} WIB`;
+                }
 
                 // 2. Parse Athlete Data
                 const dataRows = rows.slice(1);
                 const data = dataRows.map(row => {
                     const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-                    const clean = (c) => c ? c.replace(/^"|"$/g, '') : '';
+                    const clean = (c) => c ? c.replace(/^"|"$/g, '').trim() : '';
                     return { name: clean(cols[0]), points: clean(cols[1]), last_activity: clean(cols[2]) };
-                }).filter(r => r.name);
+                }).filter(r => r.name && r.name !== 'Name');
 
                 let html = '<table class="min-w-full"><thead class="bg-blue-50 text-blue-800 text-xs font-bold uppercase tracking-wider"><tr><th class="py-4 px-4 text-left">Rank</th><th class="py-4 px-4 text-left">Athlete</th><th class="py-4 px-4 text-right">Points</th><th class="py-4 px-4 text-right">Last Recorded</th></tr></thead><tbody class="text-sm">';
                 
                 data.forEach((athlete, i) => {
                     const rank = i + 1;
                     const icon = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-                    html += `<tr class="border-b border-blue-50 hover:bg-blue-50 transition"><td class="py-4 px-4 font-bold text-blue-600">${icon}</td><td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td><td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points}</td><td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity}</td></tr>`;
+                    html += `<tr class="border-b border-blue-50 hover:bg-blue-50 transition">
+                        <td class="py-4 px-4 font-bold text-blue-600">${icon}</td>
+                        <td class="py-4 px-4 font-bold text-blue-900">${athlete.name}</td>
+                        <td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points || 0}</td>
+                        <td class="py-4 px-4 text-right text-xs text-gray-400 italic">${athlete.last_activity || '---'}</td>
+                    </tr>`;
                 });
                 
                 container.innerHTML = html + '</tbody></table>';
             } catch (err) {
-                container.innerHTML = '<p class="p-8 text-center text-gray-400">Loading live standings...</p>';
+                console.error(err);
+                container.innerHTML = '<p class="p-8 text-center text-gray-400">Loading standings...</p>';
             }
         }
 
