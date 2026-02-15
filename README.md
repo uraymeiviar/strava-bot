@@ -13,6 +13,7 @@ The **Google Cloud Function** serves as the initial gateway for participants.
 * **OAuth Handler**: When a user clicks "Connect with Strava," they are redirected to the Cloud Function URL.
 * **Token Exchange**: The function receives the authorization code, exchanges it for a permanent `refresh_token`, and retrieves the athlete's basic profile info.
 * **Database Entry**: It writes the athlete's name, ID, and refresh token into the **'Athletes'** tab of the Google Sheet.
+* **cloudfunction** folder: as the reference of what the cloud function run
 
 ### 2. The Data Plumber (`sync.js`)
 This Node.js script acts as a "dumb pusher," responsible only for the movement of raw data.
