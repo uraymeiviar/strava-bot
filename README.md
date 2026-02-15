@@ -22,18 +22,23 @@ This Node.js script acts as a "dumb pusher," responsible only for the movement o
 * **Raw Data Dump**: The script appends every activity detail (distance, moving time, elevation, date, and type) to the **'Stats'** tab. It does not perform any calculations.
 * **Status Updates**: Upon a successful sync, it updates cells **E2** (Last Sync) and **F2** (Next Sync) in the **'Leaderboard'** tab to provide live status updates for the frontend.
 
-### 3. The Backend (Google Sheets)
-The Google Sheet is the central "Brain" and Database of the project.
-* **Storage**: Holds the permanent registry of athletes and the massive log of raw activities.
-* **Calculation Engine**: All aggregation, filtering, and ranking are handled by native spreadsheet formulas (like `QUERY` and `ARRAYFORMULA`).
-* **Web API**: The **'Leaderboard'** tab is published as a CSV file, allowing the frontend to read the data without complex API keys or database drivers.
+### 3. Automation Orchestrator (`.github/workflows/`)
+The YAML files in this directory define the **GitHub Actions** that keep the leaderboard alive without manual intervention.
+* **Cron Scheduling**: A `schedule` event triggers the workflow at specific intervals (e.g., every 2 hours).
+* **Environment Provisioning**: GitHub spins up a virtual runner, installs **Node.js**, and runs `npm install` to prepare the dependencies.
+* **Secret Management**: The workflow securely injects GitHub Secrets (like `STRAVA_CLIENT_ID` and `GOOGLE_PRIVATE_KEY`) as environment variables so `sync.js` can authenticate safely.
+* **Workflow Logic**: It executes `node sync.js`, triggering the entire data pipeline from Strava to Google Sheets.
 
-### 4. The Frontend (`index.html`)
+### 4. The Backend (Google Sheets)
+The Google Sheet is the central "Brain" and Database of the project.
+* **Storage**: Holds the permanent registry of athletes and the cumulative log of raw activities.
+* **Logic Hub**: All aggregation, filtering, and ranking are handled by native spreadsheet formulas (such as `QUERY`) within the sheet itself.
+* **Web API**: The **'Leaderboard'** tab is published as a CSV file, allowing the frontend to read live data without requiring complex API keys.
+
+### 5. The Frontend (`index.html`)
 A static, responsive dashboard hosted on GitHub Pages.
-* **CSV Reader**: On every page load, it fetches the Published CSV link from Google Sheets.
-* **Live UI Rendering**: It parses the CSV to display the current ranks, name, points, and the time of the last recorded activity for each athlete.
-* **Sync Labels**: It extracts metadata from Row 2 of the CSV to display exactly when the data was last updated and when the next run is scheduled.
-* **Session Management**: Uses `localStorage` to toggle between the "Connect with Strava" registration button and a "You're Connected" status for returning users.
+* **CSV Parsing**: On every page load, it fetches the Published CSV from Google Sheets and parses the rows into a readable format.
+* **State Management**: Uses `localStorage` to check if a user has already registered, toggling between the "Connect" button and a "You're Connected" status.
 
 ---
 
