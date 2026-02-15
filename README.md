@@ -1,6 +1,6 @@
 Technical Architecture
 
-This project is a high-performance leaderboard for the strava custom challenge. It automates the collection of activity data from Strava and uses Google Sheets as a serverless database and calculation engine.
+This project is a leaderboard for the strava custom challenge. It automates the collection of activity data from Strava and uses Google Sheets as a serverless database and calculation engine.
 
 ---
 

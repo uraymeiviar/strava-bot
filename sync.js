@@ -55,13 +55,13 @@ async function sync() {
     } catch (err) { console.error(`Error for ${name}:`, err.message); }
   }
 
-  // --- UPDATE TIMESTAMPS IN E2/F2 (Technical Standard) ---
+  // --- UPDATE TIMESTAMPS IN E2/F2 (Standard ISO Format) ---
   try {
     await leaderboardSheet.loadCells('E2:F2'); 
     const now = new Date();
-    const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2-hour interval
+    const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2h interval
 
-    // Use ISO strings in the sheet so the browser can parse them reliably
+    // Write raw ISO strings so the browser can parse them into any timezone
     leaderboardSheet.getCellByA1('E2').value = now.toISOString();
     leaderboardSheet.getCellByA1('F2').value = next.toISOString();
 

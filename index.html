@@ -81,7 +81,7 @@
         const toWIB = (isoStr) => {
             if (!isoStr || isoStr === '--:--' || isoStr.trim() === '') return '---';
             const date = new Date(isoStr);
-            if (isNaN(date.getTime())) return isoStr; // Return as-is if parsing fails
+            if (isNaN(date.getTime())) return isoStr; 
             
             return date.toLocaleString('en-GB', {
                 timeZone: 'Asia/Jakarta',
@@ -115,7 +115,8 @@
                 // 2. Parse Athlete Data
                 const dataRows = rows.slice(1);
                 const data = dataRows.map(row => {
-                    const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    // Split strictly by comma to prevent splitting names with spaces
+                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
                     const clean = (c) => c ? c.replace(/^"|"$/g, '').trim() : '';
                     return { 
                         name: clean(cols[0]), 
