@@ -76,10 +76,46 @@ The user interface is designed for clarity and real-time tracking of the challen
 
 ---
 
-## 📂 Sheet Tab Definitions
+## 📂 Sheet Tab & Column Definitions
 
-| Tab Name | Managed By | Description |
-| :--- | :--- | :--- |
-| **Athletes** | Cloud Function | Registry of athlete names, IDs, and OAuth refresh tokens. |
-| **Stats** | `sync.js` | Raw, uncalculated list of every activity distance and date. |
-| **Leaderboard** | Sheet Formulas | Aggregated view of ranks, points, and sync timing headers. |
+### 1. **'Athletes' Tab**
+*Managed by: Google Cloud Function*.
+This is the participant registry.
+| Column | Description |
+| :--- | :--- |
+| **name** | The full name of the athlete from their Strava profile. |
+| **athlete_id** | Unique Strava identifier used for API requests. |
+| **refresh_token** | Persistent token used to generate temporary access tokens during sync. |
+
+### 2. **'Stats' Tab**
+*Managed by: `sync.js` (Rows 2+) and Header Formulas (Row 1)*.
+The raw activity log where every exercise is recorded.
+| Column | Description |
+| :--- | :--- |
+| **athlete_id** | Links the activity to a specific participant. |
+| **name** | Athlete name for easy reading in raw logs. |
+| **type** | The activity category (e.g., Run, Ride, Swim, Walk). |
+| **distance_meters** | The raw distance in meters as reported by Strava. |
+| **moving_time** | Total active duration in seconds. |
+| **elevation_gain** | Total vertical gain in meters. |
+| **points** | **(Calculated)** Distance converted to km and multiplied by specific activity weights. |
+| **date** | The ISO timestamp of when the activity started. |
+
+### 3. **'Leaderboard' Tab**
+*Managed by: Spreadsheet Formulas (A-C) and `sync.js` (E-F)*.
+The aggregated data published to the frontend.
+| Column | Description |
+| :--- | :--- |
+| **Name (A)** | Aggregated unique athlete names from the Stats tab. |
+| **Points (B)** | Sum total of all points earned by the athlete. |
+| **Last Activity (C)** | The most recent timestamp found for that athlete. |
+| **Last Update (E)** | Raw ISO timestamp of the most recent successful script run. |
+| **Next Update (F)** | Calculated timestamp for the next scheduled synchronization. |
+
+### 4. **'Mapping' Tab**
+*Managed by: Manual Input (The "Control Panel")*.
+This tab defines how much each activity is worth. Adding a new row here automatically updates the points for all athletes.
+| Column | Description |
+| :--- | :--- |
+| **Activity Type** | The exact name of the activity from Strava (e.g., Run, Ride, Swim). |
+| **Weight** | The multiplier applied to the distance in kilometers. |
