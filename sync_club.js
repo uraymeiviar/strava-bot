@@ -137,6 +137,14 @@ async function syncClub() {
     // 4. Update Stats Sheet
     if (allActivities.length > 0) {
         await statsSheet.clearRows();
+
+        // DEBUG: Check headers
+        await statsSheet.loadHeaderRow();
+        console.log('DEBUG SHEETS HEADERS:', statsSheet.headerValues);
+
+        // DEBUG: Check first activity structure for 'athlete' and 'start_date_local'
+        console.log('DEBUG FIRST ACTIVITY:', JSON.stringify(allActivities[0], null, 2));
+
         allActivities.reverse();
 
         const rowsToAdd = allActivities.map(act => ({
