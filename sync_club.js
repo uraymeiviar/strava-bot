@@ -3,6 +3,7 @@ const { JWT } = require('google-auth-library');
 const axios = require('axios');
 
 // Config
+const STRAVA_CLUB_ID = process.env.STRAVA_CLUB_ID;
 // Defaults if no Config sheet found
 let START_DATE = new Date('2026-02-01');
 let END_DATE = new Date('2026-12-31'); // Default to end of year or far future
