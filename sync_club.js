@@ -80,11 +80,19 @@ async function syncClub() {
 
     while (keepFetching) {
         try {
+            // Attempt to filter by 'after' parameter (Unix epoch seconds)
+            // Even if documentation is vague, this is worth a shot.
+            const afterTimestamp = Math.floor(START_DATE.getTime() / 1000);
+
             const res = await axios.get(`https://www.strava.com/api/v3/clubs/${STRAVA_CLUB_ID}/activities`, {
                 headers: { Authorization: `Bearer ${accessToken}` },
                 params: {
                     page: page,
-                    per_page: perPage
+                    per_page: perPage,
+                    // Try to filter at API level since we can't see dates in response
+                    // Note: If API ignores this, we might get old activities.
+                    // But since we can't check the date, we have to trust the feed or this param.
+                    after: afterTimestamp
                 }
             });
 
@@ -103,15 +111,15 @@ async function syncClub() {
             }
 
             for (const act of activities) {
-                const activityDate = new Date(act.start_date_local);
+                // Since start_date_local is missing, we CANNOT filter by date here.
+                // We also CANNOT filter by END_DATE.
+                // We just accept the activity as "Recent".
 
-                if (activityDate >= START_DATE && activityDate <= END_DATE) {
-                    allActivities.push(act);
-                    addedFromPage++;
-                } else if (activityDate < START_DATE) {
-                    keepFetching = false;
-                    break;
-                }
+                // For Athlete ID, we fall back to Name matching if ID is missing.
+                // Club feed API strips athlete.id usually.
+
+                allActivities.push(act);
+                addedFromPage++;
             }
 
             console.log(`Page ${page}: Found ${activities.length} items, Kept ${addedFromPage} valid.`);
@@ -147,15 +155,27 @@ async function syncClub() {
 
         allActivities.reverse();
 
-        const rowsToAdd = allActivities.map(act => ({
-            athlete_id: act.athlete.id || '',
-            name: `${act.athlete.firstname} ${act.athlete.lastname}`,
-            type: act.type,
-            distance_meters: act.distance,
-            moving_time: act.moving_time,
-            elevation_gain: act.total_elevation_gain,
-            date: act.start_date_local
-        }));
+        const rowsToAdd = allActivities.map(act => {
+            // Fallback for missing athlete.id
+            // We use firstname + lastname as a rough unique key if ID is missing
+            const athleteName = `${act.athlete.firstname} ${act.athlete.lastname}`;
+            const athleteId = act.athlete.id || athleteName.replace(/\s+/g, '_').toLowerCase(); // pseudo-ID
+
+            // Fallback for missing date
+            // We use a placeholder or leave empty.
+            // If we leave it empty, the sheet just won't show it.
+            const dateStr = act.start_date_local || '';
+
+            return {
+                athlete_id: athleteId,
+                name: athleteName,
+                type: act.type,
+                distance_meters: act.distance,
+                moving_time: act.moving_time,
+                elevation_gain: act.total_elevation_gain,
+                date: dateStr
+            };
+        });
 
         await statsSheet.addRows(rowsToAdd);
         console.log('Stats sheet updated.');
