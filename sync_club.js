@@ -162,9 +162,9 @@ async function syncClub() {
             const athleteId = act.athlete.id || athleteName.replace(/\s+/g, '_').toLowerCase(); // pseudo-ID
 
             // Fallback for missing date
-            // We use a placeholder or leave empty.
-            // If we leave it empty, the sheet just won't show it.
-            const dateStr = act.start_date_local || '';
+            // User requested to use the config START_DATE if actual date is missing.
+            // This at least gives a "period" context even if not exact.
+            const dateStr = act.start_date_local || START_DATE.toISOString();
 
             return {
                 athlete_id: athleteId,
