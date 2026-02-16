@@ -185,15 +185,19 @@ async function syncClub() {
 
     // 5. Update Metadata
     try {
-        await leaderboardSheet.loadCells('E2:F2');
+        await leaderboardSheet.loadCells('E2:H2'); // Expanded range to include G2, H2
         const now = new Date();
         const next = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
         leaderboardSheet.getCellByA1('E2').value = now.toISOString();
         leaderboardSheet.getCellByA1('F2').value = next.toISOString();
 
+        // Write Configured Dates for Frontend
+        leaderboardSheet.getCellByA1('G2').value = START_DATE.toISOString();
+        leaderboardSheet.getCellByA1('H2').value = END_DATE.toISOString();
+
         await leaderboardSheet.saveUpdatedCells();
-        console.log('Timestamps updated.');
+        console.log('Timestamps and Config dates updated.');
     } catch (err) { console.error("Metadata update failed:", err.message); }
 }
 
