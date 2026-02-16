@@ -64,15 +64,17 @@ async function syncClub() {
             // Filter and Collect
             let addedFromPage = 0;
 
-            // DEBUG: Log the first activity's date on this page
-            if (activities.length > 0) {
-                console.log(`DEBUG: First activity on page ${page} has date: ${activities[0].start_date_local}`);
-            }
-
             for (const act of activities) {
-                // DEBUG: Take ALL activities for testing.
-                allActivities.push(act);
-                addedFromPage++;
+                const activityDate = new Date(act.start_date_local);
+                if (activityDate >= START_DATE) {
+                    allActivities.push(act);
+                    addedFromPage++;
+                } else {
+                    // If we hit an activity older than START_DATE, we can stop fetching
+                    // because activities are returned in reverse chronological order.
+                    keepFetching = false;
+                    break; // Exit the inner for loop
+                }
             }
 
             console.log(`Page ${page}: Found ${activities.length} items, Kept ${addedFromPage} valid.`);
