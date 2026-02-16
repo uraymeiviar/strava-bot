@@ -102,93 +102,70 @@ async function syncClub() {
             }
 
             for (const act of activities) {
+                const activityDate = new Date(act.start_date_local);
 
-                for (const act of activities) {
-                    const activityDate = new Date(act.start_date_local);
-
-                    if (activityDate >= START_DATE && activityDate <= END_DATE) {
-                        allActivities.push(act);
-                        addedFromPage++;
-                    } else if (activityDate < START_DATE) {
-                        // If we hit an activity older than START_DATE, we can stop fetching
-                        // because activities are returned in reverse chronological order.
-                        keepFetching = false;
-                        // break; // Don't break yet, in case activities are slightly out of order, 
-                        // but usually safe to break. Let's strictly filter instead of breaking immediately 
-                        // if we want to be super safe, but break optimizes speed. 
-                        // Given Strava's reliability, let's break to save API calls.
-                        break;
-                    }
-                    // If activityDate > END_DATE, we just skip it (too new), but continue fetching older ones.
-                }
-
-                console.log(`Page ${page}: Found ${activities.length} items, Kept ${addedFromPage} valid.`);
-
-                // Safety break for empty pages or very deep history if API behaves oddly
-                if (activities.length < perPage && keepFetching) {
-                    // If we got fewer than requested, we likely hit the end, 
-                    // but Strava filtering might hide some, so strictly we rely on the loop condition above.
-                    // However, in club feed, usually end of list means end of data.
-                }
-
-                page++;
-
-                // Safety limit to prevent infinite loops if logic fails
-                if (page > 10) {
-                    console.warn('Hit safety page limit (10 pages). Stopping fetch.');
+                if (activityDate >= START_DATE && activityDate <= END_DATE) {
+                    allActivities.push(act);
+                    addedFromPage++;
+                } else if (activityDate < START_DATE) {
                     keepFetching = false;
+                    break;
                 }
+            }
 
-            } catch (err) {
-                console.error(`Error fetching page ${page}:`, err.message);
+            console.log(`Page ${page}: Found ${activities.length} items, Kept ${addedFromPage} valid.`);
+
+            if (activities.length < perPage) {
                 keepFetching = false;
             }
+
+            page++;
+            if (page > 10) {
+                console.warn('Hit safety page limit (10 pages). Stopping fetch.');
+                keepFetching = false;
+            }
+
+        } catch (err) {
+            console.error(`Error fetching page ${page}:`, err.message);
+            keepFetching = false;
         }
+    }
 
     console.log(`Total valid activities to sync: ${allActivities.length}`);
 
-        // 4. Update Stats Sheet
-        // STRATEGY: Wipe and Replace to ensure consistency and handle edits/deletions
-        // NOTE: This assumes club feed provides enough history. 
+    // 4. Update Stats Sheet
+    if (allActivities.length > 0) {
+        await statsSheet.clearRows();
+        allActivities.reverse();
 
-        if (allActivities.length > 0) {
-            await statsSheet.clearRows();
+        const rowsToAdd = allActivities.map(act => ({
+            athlete_id: act.athlete.id || '',
+            name: `${act.athlete.firstname} ${act.athlete.lastname}`,
+            type: act.type,
+            distance_meters: act.distance,
+            moving_time: act.moving_time,
+            elevation_gain: act.total_elevation_gain,
+            date: act.start_date_local
+        }));
 
-            // Reverse to insert oldest first? Or just insert all. 
-            // Order doesn't strictly matter for the Leaderboard formulas, but looks nicer.
-            // allActivities is Newest -> Oldest. Let's reverse it to Oldest -> Newest.
-            allActivities.reverse();
-
-            const rowsToAdd = allActivities.map(act => ({
-                athlete_id: act.athlete.id || '', // Club API usually returns this in summary
-                name: `${act.athlete.firstname} ${act.athlete.lastname}`,
-                type: act.type,
-                distance_meters: act.distance,
-                moving_time: act.moving_time,
-                elevation_gain: act.total_elevation_gain,
-                date: act.start_date_local // ISO format
-            }));
-
-            // Batch add might be faster but google-spreadsheet limits batch size sometimes. 
-            // addRow is safe. addRows is better for quota.
-            await statsSheet.addRows(rowsToAdd);
-            console.log('Stats sheet updated.');
-        } else {
-            console.log('No new activities found. Skipping sheet update.');
-        }
-
-        // 5. Update Metadata (Timestamps)
-        try {
-            await leaderboardSheet.loadCells('E2:F2');
-            const now = new Date();
-            const next = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2h interval
-
-            leaderboardSheet.getCellByA1('E2').value = now.toISOString();
-            leaderboardSheet.getCellByA1('F2').value = next.toISOString();
-
-            await leaderboardSheet.saveUpdatedCells();
-            console.log('Timestamps updated.');
-        } catch (err) { console.error("Metadata update failed:", err.message); }
+        await statsSheet.addRows(rowsToAdd);
+        console.log('Stats sheet updated.');
+    } else {
+        console.log('No new activities found. Skipping sheet update.');
     }
 
-    syncClub();
+    // 5. Update Metadata
+    try {
+        await leaderboardSheet.loadCells('E2:F2');
+        const now = new Date();
+        const next = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+
+        leaderboardSheet.getCellByA1('E2').value = now.toISOString();
+        leaderboardSheet.getCellByA1('F2').value = next.toISOString();
+
+        await leaderboardSheet.saveUpdatedCells();
+        console.log('Timestamps updated.');
+    } catch (err) { console.error("Metadata update failed:", err.message); }
+}
+
+syncClub();
