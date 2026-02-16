@@ -27,6 +27,10 @@
                 ITB Challenge Leaderboard 🏃‍♂️🚴‍♀️
             </h1>
             <p class="text-blue-200 text-lg md:text-xl font-medium">Track your progress, compete with peers.</p>
+            <div id="period-display"
+                class="hidden mt-4 inline-block bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1 text-sm text-blue-100 font-semibold tracking-wide">
+                <!-- Javascript will fill this -->
+            </div>
         </header>
 
         <div id="success-alert"
@@ -126,9 +130,19 @@
                     const statusCols = rows[1].split(',');
                     const rawLast = statusCols[4]?.replace(/^"|"$/g, '');
                     const rawNext = statusCols[5]?.replace(/^"|"$/g, '');
+                    const rawStart = statusCols[6]?.replace(/^"|"$/g, '');
+                    const rawEnd = statusCols[7]?.replace(/^"|"$/g, '');
 
                     document.getElementById('last-updated').textContent = `Last update: ${toWIB(rawLast)}`;
                     document.getElementById('next-update').textContent = `Next update scheduled: ${toWIB(rawNext)}`;
+
+                    // Display Period if available
+                    if (rawStart && rawEnd) {
+                        const startStr = new Date(rawStart).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                        const endStr = new Date(rawEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                        document.getElementById('period-display').textContent = `🏆 Period: ${startStr} - ${endStr}`;
+                        document.getElementById('period-display').classList.remove('hidden');
+                    }
                 }
 
                 // 2. Parse Athlete Data
