@@ -175,7 +175,7 @@
                                 ${athlete.name}
                             </a>
                         </td>
-                        <td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${athlete.points || 0}</td>
+                        <td class="py-4 px-4 text-right font-black text-blue-700 text-lg">${(athlete.points || 0).toFixed(2)}</td>
                         <td class="py-4 px-4 text-right text-xs text-gray-500 font-medium">
                             ${toWIB(athlete.last_activity)}
                         </td>
