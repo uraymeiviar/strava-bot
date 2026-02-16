@@ -225,7 +225,10 @@ async function syncClub() {
                 // Low Quality Data (Club Feed)
                 athleteName = `${act.athlete.firstname} ${act.athlete.lastname}`;
                 athleteId = act.athlete.id || athleteName.replace(/\s+/g, '_').toLowerCase();
-                dateStr = act.start_date_local || START_DATE.toISOString(); // Fallback
+                // Fallback for missing date
+                // If date is missing (Club Feed), we leave it empty.
+                // This ensures the leaderboard shows "---" instead of a fake date.
+                dateStr = act.start_date_local || '';
             }
 
             return {
