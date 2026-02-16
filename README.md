@@ -119,3 +119,57 @@ This tab defines how much each activity is worth. Adding a new row here automati
 | :--- | :--- |
 | **Activity Type** | The exact name of the activity from Strava (e.g., Run, Ride, Swim). |
 | **Weight** | The multiplier applied to the distance in kilometers. |
+
+---
+
+## 🛠️ Club Mode Setup (Workaround for 1-User Limit)
+
+To bypass the 1-user limit of unverified apps, you can use "Club Mode". This fetches public activities from *all* members of a specific club using a single admin account.
+
+### 1. Create a New Strava App
+1. Go to [Strava API Settings](https://www.strava.com/settings/api).
+2. Create a new application (e.g., "Club Sync Bot").
+3. Copy the **Client ID** and **Client Secret**.
+4. Set the **Authorization Callback Domain** to `localhost` (or `uraymeiviar.github.io` if you prefer).
+
+### 2. Generate the Refresh Token
+Usage of this mode requires a one-time manual token generation.
+
+1. **Construct the Authorization URL**:
+   Replace `[YOUR_CLIENT_ID]` in the link below.
+   *Note: If you set your domain to `uraymeiviar.github.io`, replace `http://localhost/exchange_token` with `https://uraymeiviar.github.io/strava-bot/?success`.*
+   ```
+   http://www.strava.com/oauth/authorize?client_id=[YOUR_CLIENT_ID]&response_type=code&redirect_uri=http://localhost/exchange_token&approval_prompt=force&scope=read,activity:read
+   ```
+
+2. **Authorize**:
+   Paste the link into your browser, log in as a **Club Member** (you), and click "Authorize".
+
+3. **Get the Authorization Code**:
+   You will be redirected to a "This site can't be reached" page. **This is normal.**
+   Look at the URL in your browser's address bar. It will look like: 
+   `http://localhost/exchange_token?state=&code=[AUTHORIZATION_CODE]&scope=...`
+   
+   Copy the code starting after `code=` (everything before `&scope`).
+
+4. **Exchange for Refresh Token**:
+   Open a terminal and run the following command (replacing the placeholders):
+   ```bash
+   curl -X POST https://www.strava.com/oauth/token \
+   -F client_id=[YOUR_CLIENT_ID] \
+   -F client_secret=[YOUR_CLIENT_SECRET] \
+   -F code=[AUTHORIZATION_CODE] \
+   -F grant_type=authorization_code
+   ```
+   *Note: If you don't have curl, you can use [Postman](https://www.postman.com/) or an online HTTP client.*
+
+5. **Save the Token**:
+   The JSON response will contain a `refresh_token`. **This is your `STRAVA_CLUB_REFRESH_TOKEN`.**
+
+### 3. Add GitHub Secrets
+Go to your GitHub Repository -> Settings -> Secrets and variables -> Actions -> New repository secret.
+Add the following:
+- `STRAVA_CLUB_CLIENT_ID`
+- `STRAVA_CLUB_CLIENT_SECRET`
+- `STRAVA_CLUB_REFRESH_TOKEN` (The refresh token generated above)
+- `STRAVA_CLUB_ID` (The numeric ID found in your club's URL)
