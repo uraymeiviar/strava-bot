@@ -127,11 +127,13 @@
 
                 // 1. Get Sync Metadata from Row 2 (index 1)
                 if (rows.length > 1) {
-                    const statusCols = rows[1].split(',');
-                    const rawLast = statusCols[4]?.replace(/^"|"$/g, '');
-                    const rawNext = statusCols[5]?.replace(/^"|"$/g, '');
-                    const rawStart = statusCols[6]?.replace(/^"|"$/g, '');
-                    const rawEnd = statusCols[7]?.replace(/^"|"$/g, '');
+                    // Robust CSV Split (handles quotes and whitespace)
+                    const statusCols = rows[1].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+
+                    const rawLast = statusCols[4];
+                    const rawNext = statusCols[5];
+                    const rawStart = statusCols[6];
+                    const rawEnd = statusCols[7];
 
                     document.getElementById('last-updated').textContent = `Last update: ${toWIB(rawLast)}`;
                     document.getElementById('next-update').textContent = `Next update scheduled: ${toWIB(rawNext)}`;
@@ -140,8 +142,11 @@
                     if (rawStart && rawEnd) {
                         const startStr = new Date(rawStart).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
                         const endStr = new Date(rawEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-                        document.getElementById('period-display').textContent = `🏆 Period: ${startStr} - ${endStr}`;
-                        document.getElementById('period-display').classList.remove('hidden');
+
+                        if (startStr !== 'Invalid Date' && endStr !== 'Invalid Date') {
+                            document.getElementById('period-display').textContent = `🏆 Period: ${startStr} - ${endStr}`;
+                            document.getElementById('period-display').classList.remove('hidden');
+                        }
                     }
                 }
 
