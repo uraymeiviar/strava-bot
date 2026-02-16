@@ -55,8 +55,77 @@ async function syncClub() {
         console.log('No Config sheet found, using default dates.');
     }
 
-    // 2. Authenticate with Strava (Club Admin Token)
-    let accessToken;
+    // 2. Authenticate & Fetch Verified Users Data (Hybrid Mode)
+    // We fetch this FIRST so we can prioritize it over Club data.
+    const verifiedActivities = [];
+    const verifiedAthletes = new Set(); // To store names/ids to exclude from Club feed
+
+    // HELPER: Convert full name to "Firstname L." format for loose matching
+    const toClubName = (fullName) => {
+        if (!fullName) return '';
+        const parts = fullName.trim().split(' ');
+        if (parts.length === 1) return parts[0];
+        const lastInitial = parts[parts.length - 1].charAt(0);
+        return `${parts[0]} ${lastInitial}.`;
+    };
+
+    const athleteSheet = doc.sheetsByTitle['Athletes'];
+    if (athleteSheet) {
+        console.log('Fetching verified athlete activities...');
+        try {
+            const athleteRows = await athleteSheet.getRows();
+            for (const row of athleteRows) {
+                const name = row.get('name');
+                const refreshToken = row.get('refresh_token');
+
+                if (!refreshToken) continue;
+
+                try {
+                    // Auth as Individual
+                    const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
+                        client_id: process.env.STRAVA_CLIENT_ID,
+                        client_secret: process.env.STRAVA_CLIENT_SECRET,
+                        refresh_token: refreshToken,
+                        grant_type: 'refresh_token'
+                    });
+                    const userAccessToken = tokenRes.data.access_token;
+
+                    // Fetch Activities
+                    const after = Math.floor(START_DATE.getTime() / 1000);
+                    const before = Math.floor(END_DATE.getTime() / 1000);
+
+                    const actsRes = await axios.get(`https://www.strava.com/api/v3/athlete/activities`, {
+                        headers: { Authorization: `Bearer ${userAccessToken}` },
+                        params: { after: after, before: before, per_page: 100 }
+                    });
+
+                    const userActs = actsRes.data;
+                    console.log(`  - ${name}: Found ${userActs.length} activities.`);
+
+                    for (const act of userActs) {
+                        // Tag this activity as "Verified" so we know the source
+                        act._isVerified = true;
+                        act._athleteName = name; // Store full name
+                        verifiedActivities.push(act);
+                    }
+
+                    // Add to exclusion list (both full name and club-formatted name)
+                    verifiedAthletes.add(name);
+                    verifiedAthletes.add(toClubName(name));
+
+                } catch (err) {
+                    console.error(`  - Failed to sync ${name}:`, err.message);
+                }
+            }
+        } catch (err) {
+            console.warn('Error reading Athletes sheet:', err.message);
+        }
+    } else {
+        console.warn('Athletes sheet not found! Skipping hybrid sync.');
+    }
+
+    // 3. Authenticate with Strava (Club Admin Token)
+    let clubAccessToken;
     try {
         const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
             client_id: process.env.STRAVA_CLUB_CLIENT_ID,
@@ -64,34 +133,28 @@ async function syncClub() {
             refresh_token: process.env.STRAVA_CLUB_REFRESH_TOKEN,
             grant_type: 'refresh_token'
         });
-        accessToken = tokenRes.data.access_token;
+        clubAccessToken = tokenRes.data.access_token;
     } catch (err) {
-        console.error('Failed to authenticate with Strava:', err.message);
+        console.error('Failed to authenticate with Strava Club:', err.message);
         process.exit(1);
     }
 
-    // 3. Fetch All Club Activities (Paginated)
-    let allActivities = [];
+    // 4. Fetch All Club Activities (Paginated)
+    let allActivities = [...verifiedActivities]; // Start with verified ones
     let page = 1;
-    const perPage = 200; // Max allowed
+    const perPage = 200;
     let keepFetching = true;
 
-    console.log(`Fetching activities for Club ID ${STRAVA_CLUB_ID} since ${START_DATE.toISOString()}...`);
+    console.log(`Fetching Club activities (ID: ${STRAVA_CLUB_ID}) since ${START_DATE.toISOString()}...`);
 
     while (keepFetching) {
         try {
-            // Attempt to filter by 'after' parameter (Unix epoch seconds)
-            // Even if documentation is vague, this is worth a shot.
             const afterTimestamp = Math.floor(START_DATE.getTime() / 1000);
-
             const res = await axios.get(`https://www.strava.com/api/v3/clubs/${STRAVA_CLUB_ID}/activities`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
+                headers: { Authorization: `Bearer ${clubAccessToken}` },
                 params: {
                     page: page,
                     per_page: perPage,
-                    // Try to filter at API level since we can't see dates in response
-                    // Note: If API ignores this, we might get old activities.
-                    // But since we can't check the date, we have to trust the feed or this param.
                     after: afterTimestamp
                 }
             });
@@ -102,37 +165,33 @@ async function syncClub() {
                 break;
             }
 
-            // Filter and Collect
             let addedFromPage = 0;
-
-            // DEBUG: Dump the first activity to see fields
-            if (activities.length > 0 && page === 1) {
-                console.log('DEBUG ACTIVITY STRUCT:', JSON.stringify(activities[0], null, 2));
-            }
+            let skippedDuplicates = 0;
 
             for (const act of activities) {
-                // Since start_date_local is missing, we CANNOT filter by date here.
-                // We also CANNOT filter by END_DATE.
-                // We just accept the activity as "Recent".
+                const clubName = `${act.athlete.firstname} ${act.athlete.lastname}`;
 
-                // For Athlete ID, we fall back to Name matching if ID is missing.
-                // Club feed API strips athlete.id usually.
+                // DEDUPLICATION LOGIC:
+                // If we already have this athlete in our Verified list, ignore the Club version.
+                // We prefer the Verified version because it has the Date and ID.
+                if (verifiedAthletes.has(clubName)) {
+                    skippedDuplicates++;
+                    continue;
+                }
 
+                // If not verified, add it (Unverified User)
                 allActivities.push(act);
                 addedFromPage++;
             }
 
-            console.log(`Page ${page}: Found ${activities.length} items, Kept ${addedFromPage} valid.`);
+            console.log(`Page ${page}: Fetched ${activities.length}. Kept ${addedFromPage} (New). Skipped ${skippedDuplicates} (Targeted).`);
 
             if (activities.length < perPage) {
                 keepFetching = false;
             }
 
             page++;
-            if (page > 10) {
-                console.warn('Hit safety page limit (10 pages). Stopping fetch.');
-                keepFetching = false;
-            }
+            if (page > 10) keepFetching = false;
 
         } catch (err) {
             console.error(`Error fetching page ${page}:`, err.message);
@@ -140,31 +199,34 @@ async function syncClub() {
         }
     }
 
-    console.log(`Total valid activities to sync: ${allActivities.length}`);
+    console.log(`Total activities to sync: ${allActivities.length}`);
 
-    // 4. Update Stats Sheet
+    // 5. Update Stats Sheet
     if (allActivities.length > 0) {
         await statsSheet.clearRows();
 
-        // DEBUG: Check headers
-        await statsSheet.loadHeaderRow();
-        console.log('DEBUG SHEETS HEADERS:', statsSheet.headerValues);
-
-        // DEBUG: Check first activity structure for 'athlete' and 'start_date_local'
-        console.log('DEBUG FIRST ACTIVITY:', JSON.stringify(allActivities[0], null, 2));
-
-        allActivities.reverse();
+        // Sort by Date Descending (Newest First)
+        // Verified acts have `start_date_local`. Club acts don't (use fallback).
+        allActivities.sort((a, b) => {
+            const dateA = a.start_date_local ? new Date(a.start_date_local) : START_DATE;
+            const dateB = b.start_date_local ? new Date(b.start_date_local) : START_DATE;
+            return dateB - dateA; // Descending
+        });
 
         const rowsToAdd = allActivities.map(act => {
-            // Fallback for missing athlete.id
-            // We use firstname + lastname as a rough unique key if ID is missing
-            const athleteName = `${act.athlete.firstname} ${act.athlete.lastname}`;
-            const athleteId = act.athlete.id || athleteName.replace(/\s+/g, '_').toLowerCase(); // pseudo-ID
+            let athleteId, athleteName, dateStr;
 
-            // Fallback for missing date
-            // User requested to use the config START_DATE if actual date is missing.
-            // This at least gives a "period" context even if not exact.
-            const dateStr = act.start_date_local || START_DATE.toISOString();
+            if (act._isVerified) {
+                // High Quality Data
+                athleteId = act.athlete.id;
+                athleteName = act._athleteName; // Full Name from Sheet
+                dateStr = act.start_date_local;
+            } else {
+                // Low Quality Data (Club Feed)
+                athleteName = `${act.athlete.firstname} ${act.athlete.lastname}`;
+                athleteId = act.athlete.id || athleteName.replace(/\s+/g, '_').toLowerCase();
+                dateStr = act.start_date_local || START_DATE.toISOString(); // Fallback
+            }
 
             return {
                 athlete_id: athleteId,
@@ -180,24 +242,22 @@ async function syncClub() {
         await statsSheet.addRows(rowsToAdd);
         console.log('Stats sheet updated.');
     } else {
-        console.log('No new activities found. Skipping sheet update.');
+        console.log('No activities found.');
     }
 
-    // 5. Update Metadata
+    // 6. Update Metadata
     try {
-        await leaderboardSheet.loadCells('E2:H2'); // Expanded range to include G2, H2
+        await leaderboardSheet.loadCells('E2:H2');
         const now = new Date();
         const next = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
         leaderboardSheet.getCellByA1('E2').value = now.toISOString();
         leaderboardSheet.getCellByA1('F2').value = next.toISOString();
-
-        // Write Configured Dates for Frontend
         leaderboardSheet.getCellByA1('G2').value = START_DATE.toISOString();
         leaderboardSheet.getCellByA1('H2').value = END_DATE.toISOString();
 
         await leaderboardSheet.saveUpdatedCells();
-        console.log('Timestamps and Config dates updated.');
+        console.log('Timestamps updated.');
     } catch (err) { console.error("Metadata update failed:", err.message); }
 }
 
