@@ -3,8 +3,9 @@ const { JWT } = require('google-auth-library');
 const axios = require('axios');
 
 // Config
-const STRAVA_CLUB_ID = process.env.STRAVA_CLUB_ID;
-const START_DATE = new Date('2026-02-01');
+// Defaults if no Config sheet found
+let START_DATE = new Date('2026-02-01');
+let END_DATE = new Date('2026-12-31'); // Default to end of year or far future
 
 async function syncClub() {
     console.log('Starting Club Sync...');
@@ -21,6 +22,37 @@ async function syncClub() {
 
     const statsSheet = doc.sheetsByTitle['Stats'];
     const leaderboardSheet = doc.sheetsByTitle['Leaderboard'];
+    const configSheet = doc.sheetsByTitle['Config'];
+
+    // 1.5. Read Config (if exists)
+    if (configSheet) {
+        console.log('Found Config sheet, reading settings...');
+        try {
+            const rows = await configSheet.getRows();
+            // Assuming Column A is Key, Column B is Value
+            // We iterate to find START_DATE and END_DATE
+
+            rows.forEach(row => {
+                const key = row.get('Key') || row._rawData[0]; // Try header 'Key' or raw index 0
+                const value = row.get('Value') || row._rawData[1]; // Try header 'Value' or raw index 1
+
+                if (key === 'START_DATE' && value) {
+                    START_DATE = new Date(value);
+                    console.log(`Updated START_DATE to ${START_DATE.toISOString()}`);
+                }
+                if (key === 'END_DATE' && value) {
+                    END_DATE = new Date(value);
+                    // Set end date to end of that day (23:59:59) to be inclusive
+                    END_DATE.setHours(23, 59, 59, 999);
+                    console.log(`Updated END_DATE to ${END_DATE.toISOString()}`);
+                }
+            });
+        } catch (err) {
+            console.warn('Error reading Config sheet, using defaults:', err.message);
+        }
+    } else {
+        console.log('No Config sheet found, using default dates.');
+    }
 
     // 2. Authenticate with Strava (Club Admin Token)
     let accessToken;
@@ -66,15 +98,21 @@ async function syncClub() {
 
             for (const act of activities) {
                 const activityDate = new Date(act.start_date_local);
-                if (activityDate >= START_DATE) {
+
+                if (activityDate >= START_DATE && activityDate <= END_DATE) {
                     allActivities.push(act);
                     addedFromPage++;
-                } else {
+                } else if (activityDate < START_DATE) {
                     // If we hit an activity older than START_DATE, we can stop fetching
                     // because activities are returned in reverse chronological order.
                     keepFetching = false;
-                    break; // Exit the inner for loop
+                    // break; // Don't break yet, in case activities are slightly out of order, 
+                    // but usually safe to break. Let's strictly filter instead of breaking immediately 
+                    // if we want to be super safe, but break optimizes speed. 
+                    // Given Strava's reliability, let's break to save API calls.
+                    break;
                 }
+                // If activityDate > END_DATE, we just skip it (too new), but continue fetching older ones.
             }
 
             console.log(`Page ${page}: Found ${activities.length} items, Kept ${addedFromPage} valid.`);
