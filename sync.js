@@ -24,37 +24,58 @@ async function sync() {
   if (configSheet) {
     console.log('Reading Config sheet...');
     try {
-      const rows = await configSheet.getRows();
+      // Normalize headers to lowercase to avoid Key vs key issues
+      await configSheet.loadHeaderRow();
+      const origHeaders = configSheet.headerValues;
 
-      let foundVertical = false;
-      for (const row of rows) {
-        const key = row.get('Key');
-        const value = row.get('Value');
+      // Only attempt to read rows if the sheet isn't completely empty
+      if (origHeaders && origHeaders.length > 0) {
+        const rows = await configSheet.getRows();
+        const findHeader = (name) => origHeaders.find(h => h.trim().toLowerCase() === name.toLowerCase());
 
-        if (key === 'START_DATE' && value) {
-          START_DATE = new Date(value);
-          console.log(`Updated START_DATE to ${START_DATE.toISOString()}`);
-          foundVertical = true;
+        const keyCol = findHeader('Key');
+        const valCol = findHeader('Value');
+        const startCol = findHeader('START_DATE');
+        const endCol = findHeader('END_DATE');
+
+        let foundVertical = false;
+
+        // Check Vertical Layout (Key/Value)
+        if (keyCol && valCol) {
+          for (const row of rows) {
+            const key = row.get(keyCol);
+            const value = row.get(valCol);
+
+            if (key === 'START_DATE' && value) {
+              START_DATE = new Date(value);
+              console.log(`Updated START_DATE to ${START_DATE.toISOString()}`);
+              foundVertical = true;
+            }
+            if (key === 'END_DATE' && value) {
+              END_DATE = new Date(value);
+              console.log(`Updated END_DATE to ${END_DATE.toISOString()}`);
+              foundVertical = true;
+            }
+          }
         }
-        if (key === 'END_DATE' && value) {
-          END_DATE = new Date(value);
-          console.log(`Updated END_DATE to ${END_DATE.toISOString()}`);
-          foundVertical = true;
-        }
-      }
 
-      if (!foundVertical && rows.length > 0) {
-        const firstRow = rows[0];
-        const horizontalStart = firstRow.get('START_DATE');
-        const horizontalEnd = firstRow.get('END_DATE');
-
-        if (horizontalStart) {
-          START_DATE = new Date(horizontalStart);
-          console.log(`Updated START_DATE (Horizontal) to ${START_DATE.toISOString()}`);
-        }
-        if (horizontalEnd) {
-          END_DATE = new Date(horizontalEnd);
-          console.log(`Updated END_DATE (Horizontal) to ${END_DATE.toISOString()}`);
+        // Check Horizontal Layout
+        if (!foundVertical && rows.length > 0) {
+          const firstRow = rows[0];
+          if (startCol) {
+            const horizontalStart = firstRow.get(startCol);
+            if (horizontalStart) {
+              START_DATE = new Date(horizontalStart);
+              console.log(`Updated START_DATE (Horizontal) to ${START_DATE.toISOString()}`);
+            }
+          }
+          if (endCol) {
+            const horizontalEnd = firstRow.get(endCol);
+            if (horizontalEnd) {
+              END_DATE = new Date(horizontalEnd);
+              console.log(`Updated END_DATE (Horizontal) to ${END_DATE.toISOString()}`);
+            }
+          }
         }
       }
     } catch (err) {
@@ -70,6 +91,10 @@ async function sync() {
 
   const athleteRows = await athleteSheet.getRows();
   let allActivities = [];
+
+  const afterTimestamp = Math.floor(START_DATE.getTime() / 1000);
+  const beforeTimestamp = Math.floor(END_DATE.getTime() / 1000);
+  console.log(`\nGlobal Filter Range: \n  AFTER:  ${afterTimestamp} (${START_DATE.toISOString()})\n  BEFORE: ${beforeTimestamp} (${END_DATE.toISOString()})\n`);
 
   for (const row of athleteRows) {
     const name = row.get('name');
@@ -87,29 +112,34 @@ async function sync() {
       });
 
       const accessToken = tokenRes.data.access_token;
-      const after = Math.floor(START_DATE.getTime() / 1000);
-      const before = Math.floor(END_DATE.getTime() / 1000);
 
       // Fetch Activities for individual
       const actsRes = await axios.get(`https://www.strava.com/api/v3/athlete/activities`, {
         headers: { Authorization: `Bearer ${accessToken}` },
-        params: { after: after, before: before, per_page: 100 }
+        params: { after: afterTimestamp, before: beforeTimestamp, per_page: 100 }
       });
 
       const userActs = actsRes.data;
-      console.log(`Synced data for: ${name}. Found ${userActs.length} activities.`);
 
-      for (const act of userActs) {
-        allActivities.push({
-          athlete_id: athleteId,
-          name: name,
-          type: act.type,
-          distance_meters: act.distance,
-          moving_time: act.moving_time,
-          elevation_gain: act.total_elevation_gain,
-          date: act.start_date_local // ISO format from Strava
-        });
+      if (userActs.length > 0) {
+        console.log(`Synced data for: ${name}. Found ${userActs.length} activities.`);
+
+        for (const act of userActs) {
+          allActivities.push({
+            athlete_id: athleteId,
+            name: name,
+            type: act.type,
+            distance_meters: act.distance,
+            moving_time: act.moving_time,
+            elevation_gain: act.total_elevation_gain,
+            date: act.start_date_local // ISO format from Strava
+          });
+        }
+      } else {
+        // Extra log for zero activities to help debug
+        console.log(`Synced data for: ${name}. Found 0 activities extending between ${START_DATE.toISOString().split('T')[0]} and ${END_DATE.toISOString().split('T')[0]}.`);
       }
+
     } catch (err) { console.error(`Error for ${name}:`, err.message); }
   }
 
