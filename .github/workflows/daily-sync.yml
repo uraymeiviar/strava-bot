@@ -1,4 +1,6 @@
 name: Targeted Strava Sync
+# Forced refresh to wake up the scheduler
+
 
 on:
   schedule:
