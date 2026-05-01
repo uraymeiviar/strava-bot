@@ -130,11 +130,22 @@ async function sync() {
     if (!refreshToken) continue;
 
     // --- Whitelist Filter ---
+    let isVerified = true; // Default to true if whitelist is disabled
     if (whitelist !== null) {
-      if (!whitelist.includes(name.trim().toLowerCase())) {
-        console.log(`Skipping ${name}: Not found in the participants whitelist.`);
-        continue;
-      }
+      isVerified = whitelist.includes(name.trim().toLowerCase());
+    }
+
+    try {
+      // Try to update the 'verified' column
+      row.set('verified', isVerified ? 'TRUE' : 'FALSE');
+      await row.save();
+    } catch (e) {
+      // Ignore error if the 'verified' column doesn't exist yet in the Google Sheet
+    }
+
+    if (!isVerified) {
+      console.log(`Skipping ${name}: Not found in the participants whitelist.`);
+      continue;
     }
 
     try {
