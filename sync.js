@@ -98,7 +98,8 @@ async function sync() {
 
   // --- 2. Load Whitelist (from 'participants' sheet) ---
   let whitelist = null;
-  const whitelistSheet = doc.sheetsByTitle['participants'];
+  // Find the participants sheet case-insensitively
+  const whitelistSheet = doc.sheetsByIndex.find(s => s.title.trim().toLowerCase() === 'participants');
   if (whitelistSheet) {
     console.log('Reading Whitelist from participants sheet...');
     try {
