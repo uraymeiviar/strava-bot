@@ -96,12 +96,46 @@ async function sync() {
   const beforeTimestamp = Math.floor(END_DATE.getTime() / 1000);
   console.log(`\nGlobal Filter Range: \n  AFTER:  ${afterTimestamp} (${START_DATE.toISOString()})\n  BEFORE: ${beforeTimestamp} (${END_DATE.toISOString()})\n`);
 
+  // --- 2. Load Whitelist (from 'participants' sheet) ---
+  let whitelist = null;
+  const whitelistSheet = doc.sheetsByTitle['participants'];
+  if (whitelistSheet) {
+    console.log('Reading Whitelist from participants sheet...');
+    try {
+      await whitelistSheet.loadHeaderRow();
+      const rows = await whitelistSheet.getRows();
+      
+      // Look for a column containing "User Name Strava" (case-insensitive) or default to the exact name
+      let stravaNameCol = whitelistSheet.headerValues.find(h => h && h.toLowerCase().includes('user name strava'));
+      if (!stravaNameCol) stravaNameCol = 'User Name Strava'; // Fallback
+      
+      whitelist = rows
+        .map(r => r.get(stravaNameCol))
+        .filter(name => name)
+        .map(name => name.trim().toLowerCase());
+        
+      console.log(`Loaded ${whitelist.length} approved users from whitelist.`);
+    } catch (err) {
+      console.warn('Error reading whitelist, skipping filter.', err.message);
+    }
+  } else {
+    console.log('No participants sheet found, whitelist filtering disabled.');
+  }
+
   for (const row of athleteRows) {
     const name = row.get('name');
     const athleteId = row.get('athlete_id');
     const refreshToken = row.get('refresh_token');
 
     if (!refreshToken) continue;
+
+    // --- Whitelist Filter ---
+    if (whitelist !== null) {
+      if (!whitelist.includes(name.trim().toLowerCase())) {
+        console.log(`Skipping ${name}: Not found in the participants whitelist.`);
+        continue;
+      }
+    }
 
     try {
       const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
