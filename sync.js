@@ -86,8 +86,7 @@ async function sync() {
   }
 
   // --- PREVENT DUPLICATES ---
-  // Wipe Stats so we re-push a fresh, unique list every time
-  await statsSheet.clearRows();
+  // We will wipe Stats right before we push the new list to minimize downtime
 
   const athleteRows = await athleteSheet.getRows();
   let allActivities = [];
@@ -194,6 +193,8 @@ async function sync() {
 
   // Add all to Stats sheet
   if (allActivities.length > 0) {
+    // Wipe Stats right before adding new rows to prevent long empty periods on the website
+    await statsSheet.clearRows();
     await statsSheet.addRows(allActivities);
     console.log(`Total ${allActivities.length} activities added to Stats.`);
   }
