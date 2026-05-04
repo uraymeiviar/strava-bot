@@ -147,9 +147,12 @@ async function sync() {
     }
 
     try {
-      // Try to update the 'verified' column
-      row.set('verified', isVerified ? 'TRUE' : 'FALSE');
-      await row.save();
+      // Try to update the 'verified' column, but ONLY if it changed to prevent Google API rate limits (Error 429)
+      const newStatus = isVerified ? 'TRUE' : 'FALSE';
+      if (row.get('verified') !== newStatus) {
+        row.set('verified', newStatus);
+        await row.save();
+      }
     } catch (e) {
       // Ignore error if the 'verified' column doesn't exist yet in the Google Sheet
     }
