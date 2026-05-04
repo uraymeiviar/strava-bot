@@ -189,7 +189,8 @@ async function sync() {
           allActivities.push({
             athlete_id: athleteId,
             name: name,
-            type: act.type,
+            // Use 'sport_type' which contains newer sports like Padel/Pilates. Fallback to 'type' for older data.
+            type: act.sport_type || act.type,
             distance_meters: act.distance,
             moving_time: act.moving_time,
             elevation_gain: act.total_elevation_gain,
