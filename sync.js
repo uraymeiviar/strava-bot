@@ -162,6 +162,8 @@ async function sync() {
       continue;
     }
 
+    let isAuthorized = true;
+
     try {
       const tokenRes = await axios.post('https://www.strava.com/oauth/token', {
         client_id: process.env.STRAVA_CLIENT_ID,
@@ -199,7 +201,23 @@ async function sync() {
         console.log(`Synced data for: ${name}. Found 0 activities extending between ${START_DATE.toISOString().split('T')[0]} and ${END_DATE.toISOString().split('T')[0]}.`);
       }
 
-    } catch (err) { console.error(`Error for ${name}:`, err.message); }
+    } catch (err) {
+      console.error(`Error for ${name}:`, err.message);
+      if (err.response && err.response.status === 401) {
+        isAuthorized = false;
+      }
+    }
+
+    try {
+      // Update 'strava authorized' column if it changed, to prevent API rate limits
+      const authStatusStr = isAuthorized ? 'TRUE' : 'FALSE';
+      if (row.get('strava authorized') !== authStatusStr) {
+        row.set('strava authorized', authStatusStr);
+        await row.save();
+      }
+    } catch (e) {
+      // Ignore error if column doesn't exist
+    }
   }
 
   // Sort globally by date descending
