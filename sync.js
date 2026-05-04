@@ -105,9 +105,16 @@ async function sync() {
       await whitelistSheet.loadHeaderRow();
       const rows = await whitelistSheet.getRows();
       
-      // Look for a column containing "User Name Strava" (case-insensitive) or default to the exact name
+      // Look for a column containing "User Name Strava" (case-insensitive)
       let stravaNameCol = whitelistSheet.headerValues.find(h => h && h.toLowerCase().includes('user name strava'));
-      if (!stravaNameCol) stravaNameCol = 'User Name Strava'; // Fallback
+      
+      // Fallback: If not found, use the 3rd column (index 2) as requested
+      if (!stravaNameCol && whitelistSheet.headerValues.length >= 3) {
+        stravaNameCol = whitelistSheet.headerValues[2];
+        console.log(`Could not find "User Name Strava" column. Falling back to 3rd column: "${stravaNameCol}"`);
+      } else if (!stravaNameCol) {
+        stravaNameCol = 'User Name Strava'; // Final fallback
+      }
       
       whitelist = rows
         .map(r => r.get(stravaNameCol))
