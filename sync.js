@@ -209,11 +209,25 @@ async function sync() {
     }
 
     try {
-      // Update 'strava authorized' column if it changed, to prevent API rate limits
       const authStatusStr = isAuthorized ? 'TRUE' : 'FALSE';
+      let needsSave = false;
+
       if (row.get('strava authorized') !== authStatusStr) {
         row.set('strava authorized', authStatusStr);
+        needsSave = true;
+      }
+
+      // If they synced successfully, update the 'last sync' timestamp
+      if (isAuthorized) {
+        row.set('last sync', new Date().toISOString());
+        needsSave = true;
+      }
+
+      if (needsSave) {
         await row.save();
+        // Add a 1.5-second delay to prevent Google Sheets 429 Quota limit!
+        // (Google only allows 60 write requests per minute)
+        await new Promise(r => setTimeout(r, 1500));
       }
     } catch (e) {
       // Ignore error if column doesn't exist
