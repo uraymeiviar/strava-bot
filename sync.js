@@ -180,7 +180,7 @@ async function sync() {
           allActivities.push({
             athlete_id: athleteId,
             name: name,
-            type: act.type ? act.type.toLowerCase().replace(/\s+/g, '') : 'unknown',
+            type: act.type,
             distance_meters: act.distance,
             moving_time: act.moving_time,
             elevation_gain: act.total_elevation_gain,
